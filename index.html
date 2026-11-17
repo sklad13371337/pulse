@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Пульс базы для цветочной сети</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Unbounded:wght@600;700&display=swap" rel="stylesheet">
+<style>
+/* Оформление повторяет pulsbazy.kz: тёмная тема, Unbounded для заголовков и цифр, Onest для интерфейса, пилюли-вкладки, фиолетовая тепловая карта. Макет: шапка, воронки, вкладки, заголовок вкладки из двух строк, рабочая область. */
+:root{--bg:#0A090B;--bg1:#121014;--bg2:#1A171C;--bg3:#242027;--surface:#121014;--ink:#F5F2F4;--ink2:#C2BBC1;--muted:#9A929B;--line:rgba(255,255,255,.07);--line2:rgba(255,255,255,.13);--accent:#F4BE55;--good:#4FD69C;--warn:#F4BE55;--bad:#FF6B7D;--mute:#9A929B;--info:#A97DEE;--soft:#1A171C;--chip:#3A3340;--focus:#9DB8FF;
+--heat0:#221B2D;--heat1:#36274E;--heat2:#4F3476;--heat3:#6C44A4;--heat4:#8C5BD1;--heat5:#A97DEE;--heat6:#C7A8FF;--heat7:#E7D8FF;
+--font:'Onest',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;--display:'Unbounded','Onest',system-ui,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.45}
+body{background-image:radial-gradient(70% 45% at 85% -8%,rgba(140,91,209,.20),transparent 70%),radial-gradient(50% 35% at 0% 0%,rgba(244,190,85,.07),transparent 70%);background-repeat:no-repeat}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+header.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding:6px 0 14px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#FFD36B,#FF8A5B);display:grid;place-items:center;box-shadow:0 6px 20px rgba(255,138,91,.25)}
+.brand h1{margin:0;font-size:17px;font-weight:700;letter-spacing:-.01em}
+.brand span{color:var(--muted);font-size:13px}
+.badge{font-size:12px;padding:5px 11px;border-radius:99px;background:var(--bg2);color:var(--muted);border:1px solid var(--line2)}
+.badge.live{color:var(--good);border-color:rgba(79,214,156,.45)}
+.funnels{display:flex;flex-wrap:wrap;gap:8px}
+button{font-family:inherit;font-size:14px;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.fb{border:1px solid var(--line2);background:var(--bg1);color:var(--ink);padding:9px 16px;border-radius:14px;font-weight:600;text-align:left}
+.fb small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.fb[aria-pressed="true"]{background:var(--chip);border-color:rgba(255,255,255,.34)}
+.btn{border:1px solid var(--line2);background:rgba(255,255,255,.09);color:var(--ink);padding:9px 16px;border-radius:99px;font-weight:600}
+.btn:hover{background:rgba(255,255,255,.16)}
+.btn.primary{background:#F5F2F4;color:#0A090B;border-color:#F5F2F4;box-shadow:0 0 28px rgba(255,255,255,.18)}
+.btn.primary:hover{background:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;padding:5px;background:var(--bg1);border:1px solid var(--line);border-radius:99px;margin:16px 0 26px;width:fit-content;max-width:100%}
+nav.tabs button{border:0;background:none;color:var(--muted);padding:9px 16px;border-radius:99px;white-space:nowrap;font-weight:600}
+nav.tabs button:hover{color:var(--ink)}
+nav.tabs button[aria-selected="true"]{background:var(--chip);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
+.eyebrow{display:flex;align-items:center;gap:10px;color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:12px}
+.eyebrow:before{content:"";width:28px;height:2px;background:currentColor}
+.eyebrow.v{color:var(--heat5)}
+h2.big{font-family:var(--display);font-weight:700;font-size:clamp(26px,4.4vw,46px);line-height:1.05;letter-spacing:-.045em;margin:0 0 22px;text-wrap:balance}
+h2.big span{color:var(--muted)}
+.grid{display:grid;gap:14px}
+.tiles{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.two{grid-template-columns:repeat(auto-fit,minmax(310px,1fr))}
+.card{background:linear-gradient(180deg,rgba(36,32,39,.55),rgba(18,16,20,.85));border:1px solid var(--line);border-radius:20px;padding:18px 20px;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.card h2{margin:0 0 12px;font-size:15px;font-weight:700}
+.card h3{margin:16px 0 6px;font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.tile .v{font-family:var(--display);font-size:34px;font-weight:700;letter-spacing:-.05em;font-variant-numeric:tabular-nums;line-height:1.1}
+.tile .l{color:var(--ink2);font-size:13px;margin-bottom:8px}
+.tile .n{font-size:12px;color:var(--muted);margin-top:6px}
+.tile.warn .v{color:var(--warn)}.tile.bad .v{color:var(--bad)}.tile.good .v{color:var(--good)}.tile.vio .v{color:var(--heat6)}
+.note{font-size:13px;color:var(--muted)}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{text-align:left;font-weight:600;color:var(--muted);font-size:12px;padding:8px 10px;border-bottom:1px solid var(--line2);white-space:nowrap}
+td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.click{cursor:pointer}tr.click:hover td{background:rgba(255,255,255,.04)}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;white-space:nowrap;border:1px solid currentColor;background:rgba(255,255,255,.03)}
+.s-ok{color:var(--good)}.s-due{color:var(--warn)}.s-fading{color:var(--bad)}.s-sleep{color:var(--mute)}.s-new{color:var(--info)}
+.p-yes{color:var(--good)}.p-no{color:var(--bad)}
+.bars{display:flex;flex-direction:column;gap:10px}
+.bar{display:grid;grid-template-columns:160px 1fr 56px;gap:10px;align-items:center;font-size:13px}
+.bar i{display:block;height:14px;border-radius:99px;background:currentColor;min-width:4px}
+.bar b{text-align:right;font-family:var(--display);font-size:13px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.cols{display:flex;align-items:flex-end;gap:5px;height:160px;padding-top:18px}
+.col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
+.col i{display:block;width:100%;background:linear-gradient(180deg,var(--heat5),var(--heat3));border-radius:6px 6px 0 0;min-height:3px}
+.col em{font-style:normal;font-size:10px;color:var(--ink2);font-variant-numeric:tabular-nums;margin-bottom:3px;white-space:nowrap}
+.cl{display:flex;gap:5px;margin-top:6px}.cl span{flex:1;text-align:center;font-size:10px;color:var(--muted)}
+.bar-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+input[type=text],input[type=number],select,textarea{font-family:inherit;font-size:14px;padding:10px 14px;border:1px solid var(--line2);border-radius:12px;background:var(--bg2);color:var(--ink)}
+input[type=text]{border-radius:99px}
+textarea{width:100%;min-height:96px}
+label.chk{display:flex;align-items:center;gap:8px;font-size:14px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.kv div span{display:block;font-size:12px;color:var(--muted)}
+.kv div b{font-family:var(--display);font-size:17px;letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+.reco{padding:12px 14px;border-radius:14px;background:var(--bg2);border-left:4px solid var(--good);margin:12px 0}
+.reco.no{border-left-color:var(--bad)}
+.hol{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.drop{border:2px dashed var(--line2);border-radius:20px;padding:20px;text-align:center;color:var(--muted)}
+.drop.over{border-color:var(--heat5)}
+code{background:var(--bg3);padding:1px 6px;border-radius:6px;font-size:13px}
+.msgs{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.msg{background:var(--bg2);border-radius:12px;padding:10px 12px;font-size:13px}
+.heat{display:grid;grid-template-columns:auto repeat(6,minmax(0,1fr));gap:6px;align-items:center}
+.heat .h{font-size:11px;color:var(--muted);text-align:center;padding:2px 0}
+.heat .r{font-size:12px;color:var(--ink2);font-weight:600;padding-right:6px}
+.hc{border:0;border-radius:12px;padding:16px 2px;font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.hc.dk{color:#0A090B}
+.hc:hover{box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+.legend{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);margin-top:14px}
+.legend i{flex:0 0 160px;height:10px;border-radius:99px;background:linear-gradient(90deg,var(--heat0),var(--heat3),var(--heat7))}
+.chip{display:inline-flex;gap:8px;align-items:center;background:var(--chip);border-radius:99px;padding:5px 6px 5px 12px;font-size:13px}
+.chip button{border:0;background:rgba(255,255,255,.12);color:var(--ink);border-radius:99px;width:22px;height:22px;line-height:1;padding:0}
+@media (max-width:520px){.bar{grid-template-columns:110px 1fr 46px}.wrap{padding:12px 16px}.hc{font-size:12px;padding:12px 0}}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><div class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a0f08" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l2.5-6 4 12 3-9 1.5 3H22"/></svg></div><h1>Пульс базы</h1><span>повторные продажи по воронкам AmoCRM</span></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="srcBadge" class="badge"></span><button class="btn" id="importBtn">Загрузить выгрузку AmoCRM</button></div>
+  </header>
+  <div class="funnels" id="funnels" role="group" aria-label="Воронка"></div>
+  <nav class="tabs" id="tabs" role="tablist" style="margin-top:14px"></nav>
+  <main id="view"></main>
+</div>
+
+<script>
+(function(){
+'use strict';
+const DAY=86400000;
+const today=Math.floor(Date.now()/DAY);
+const MONTHS=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const SEG={ok:'Покупает как обычно',due:'Пора напомнить',fading:'Пропадает',sleep:'Спящий',new:'Новичок, 1 покупка'};
+const TABS=[['pulse','Пульс базы'],['today','Списки на сегодня'],['map','Карта базы'],['card','Карточка клиента'],['season','Товары и сезон'],['send','Отправки'],['ai','AI-поиск'],['log','Права и журнал']];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN=n=>Math.round(n).toLocaleString('ru-RU');
+const rub=n=>fmtN(n)+' ₽';
+const dstr=d=>new Date(d*DAY).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:'UTC'});
+const pl=(n,f)=>{const a=Math.abs(n)%100,b=a%10;return f[(a>10&&a<20)?2:(b>1&&b<5)?1:(b===1)?0:2]};
+const fmtPhone=p=>/^7\d{10}$/.test(p)?'+7 ('+p.slice(1,4)+') '+p.slice(4,7)+'-'+p.slice(7,9)+'-'+p.slice(9):(p||'нет номера');
+const dayOf=(y,m,d)=>Date.UTC(y,m-1,d)/DAY;
+
+/* ---------- состояние ---------- */
+const S={funnel:'Розамания',tab:'pulse',src:{},data:{},A:{},sel:null,mapSel:null,
+  f:{seg:'work',ok:true,q:'',cell:null},cardQ:'',aiq:'',aiRes:null,batch:null,
+  tpl:'Здравствуйте, {имя}! Это {магазин}. В прошлый раз вы брали: {товар}. Если нужен букет, напишите ответом, соберём к нужному времени.',
+  limit:50,bsize:25,ctrl:10,log:[],imp:{funnel:'',consent:false,msg:''}};
+const logAdd=t=>S.log.unshift({t:new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),a:t});
+
+/* ---------- демо-данные ---------- */
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const FN=['Анна','Мария','Елена','Ольга','Наталья','Ирина','Светлана','Татьяна','Юлия','Екатерина','Дмитрий','Алексей','Сергей','Андрей','Михаил','Игорь','Виктория','Алина','Оксана','Павел'];
+const LN=['Иванова','Петрова','Смирнова','Кузнецова','Попова','Соколова','Лебедева','Козлова','Новикова','Морозова','Волкова','Орлова','Зайцева','Борисова','Егорова','Фомина'];
+const PROF={
+ 'Розамания':{n:420,avg:3200,seed:11,rh:[25,90],items:['Розы красные','Розы микс','Тюльпаны','Хризантемы','Букет авторский','Герберы','Пионы']},
+ 'Амстердам':{n:300,avg:6500,seed:23,rh:[30,120],items:['Розы Эквадор 60 см','Букет премиум','Пионы','Орхидеи','Гортензии','Композиция в коробке']},
+ 'Цветобаза':{n:160,avg:14000,seed:37,rh:[7,30],items:['Розы 50 см','Эустома','Гвоздика','Хризантема кустовая','Тюльпаны','Зелень']}
+};
+function holidays(y){
+  const H=[];const add=(n,m,d)=>H.push({n,day:dayOf(y,m,d)});
+  add('14 февраля',2,14);add('8 Марта',3,8);add('1 сентября',9,1);add('Новый год',12,31);
+  let d=new Date(Date.UTC(y,10,30));while(d.getUTCDay()!==0)d=new Date(d-DAY);
+  H.push({n:'День матери',day:d/DAY});
+  return H;
+}
+function genDemo(name){
+  const P=PROF[name],r=rng(P.seed),clients=[];
+  const pick=a=>a[Math.floor(r()*a.length)];
+  const yr=new Date().getUTCFullYear();
+  for(let i=0;i<P.n;i++){
+    const c={id:name.slice(0,2).toUpperCase()+'-'+(1000+i),name:pick(FN)+' '+pick(LN),
+      phone:'7000'+String(Math.floor(r()*1e7)).padStart(7,'0'),consent:r()>0.12,optout:r()<0.04,complaint:r()<0.02,noWa:r()<0.06,
+      lastMsg:null,msgs30:0,orders:[]};
+    if(r()<0.1){c.lastMsg=today-Math.floor(r()*25);c.msgs30=r()<0.3?2:1}
+    const favs=[pick(P.items),pick(P.items)];
+    const mk=d=>({d,sum:Math.round(P.avg*(0.5+r()*1.1)/50)*50,items:r()<0.7?[favs[0]]:[favs[0],pick(P.items)]});
+    if(r()<0.28){ // покупает к датам
+      const hs=[['8 Марта',3,8],['14 февраля',2,14],['День матери',11,28],['Новый год',12,29]];
+      const mine=[pick(hs)];if(r()<0.5)mine.push(pick(hs));
+      for(let y=yr-2;y<=yr;y++)for(const h of mine){const d=dayOf(y,h[1],h[2])-Math.floor(r()*4);if(d<=today-3&&r()<0.85)c.orders.push(mk(d))}
+    }else{
+      const I=P.rh[0]+r()*(P.rh[1]-P.rh[0]);const k=1+Math.floor(-Math.log(1-r())*2.6);
+      const u=r();const age=u<0.5?r()*I*1.1:u<0.72?I*(1.1+r()*2.2):I*(2.5+r()*8);
+      let d=today-Math.round(Math.min(age,540));
+      for(let j=0;j<Math.min(k,9)&&d>today-900;j++){c.orders.push(mk(d));d-=Math.round(I*(0.7+r()*0.6))}
+    }
+    if(!c.orders.length)c.orders.push(mk(today-Math.floor(r()*300)));
+    clients.push(c);
+  }
+  return clients;
+}
+
+/* ---------- расчёты ---------- */
+function analyze(c){
+  const o=c.orders.slice().sort((a,b)=>a.d-b.d),n=o.length,last=o[n-1].d,pause=today-last;
+  const total=o.reduce((s,x)=>s+x.sum,0),avgCheck=total/n;
+  let avgInt=null,med=null,idx=null;
+  if(n>=2){avgInt=Math.max(1,(last-o[0].d)/(n-1));const iv=[];for(let i=1;i<n;i++)iv.push(o[i].d-o[i-1].d);iv.sort((a,b)=>a-b);const m=Math.floor(iv.length/2);med=iv.length%2?iv[m]:(iv[m-1]+iv[m])/2;idx=pause/avgInt}
+  let seg;
+  if(n===1)seg=pause<=180?'new':'sleep';else seg=idx<0.9?'ok':idx<1.6?'due':idx<3?'fading':'sleep';
+  const stake=avgInt?avgCheck*Math.min(3,90/avgInt):avgCheck*0.25;
+  const cnt={};o.forEach(x=>x.items.forEach(i=>cnt[i]=(cnt[i]||0)+1));
+  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(e=>e[0]);
+  const tied={};
+  o.forEach(x=>{const y=new Date(x.d*DAY).getUTCFullYear();[y-1,y,y+1].forEach(yy=>holidays(yy).forEach(h=>{if(Math.abs(x.d-h.day)<=4)tied[h.n]=(tied[h.n]||0)+1}))});
+  const up=[];const yr=new Date().getUTCFullYear();
+  [yr,yr+1].forEach(yy=>holidays(yy).forEach(h=>{const left=h.day-today;if(left>=0&&left<=100&&tied[h.n])up.push({n:h.n,left})}));
+  up.sort((a,b)=>a.left-b.left);
+  return{n,last,pause,total,avgCheck,avgInt,med,idx,seg,stake,top,tied:Object.keys(tied),up,first:o[0].d,sorted:o};
+}
+const CHECKS=[
+ ['no_phone','Нет номера телефона',(c)=>!/^7\d{10}$/.test(c.phone)],
+ ['no_consent','Нет согласия на рекламные сообщения',(c)=>!c.consent],
+ ['optout','Клиент просил не писать',(c)=>c.optout],
+ ['complaint','Есть жалоба',(c)=>c.complaint],
+ ['no_wa','Номера нет в WhatsApp',(c)=>c.noWa],
+ ['dup','Номер повторяется у другого клиента',(c,a,ctx)=>ctx.ph[c.phone]>1],
+ ['recent','Писали меньше 7 дней назад',(c)=>c.lastMsg!=null&&today-c.lastMsg<7],
+ ['limit','Уже 2 сообщения за 30 дней',(c)=>c.msgs30>=2],
+ ['early','Ещё не пора: пауза короче обычного ритма',(c,a)=>a.idx!=null&&a.idx<0.9],
+ ['fresh','Единственная покупка меньше 14 дней назад',(c,a)=>a.n===1&&a.pause<14]
+];
+function build(f){
+  const ph={};S.data[f].forEach(c=>{if(c.phone)ph[c.phone]=(ph[c.phone]||0)+1});
+  const ctx={ph};
+  S.A[f]=S.data[f].map(c=>{const a=analyze(c);const r=CHECKS.filter(k=>k[2](c,a,ctx)).map(k=>k[1]);return{c,a,r}});
+}
+const cur=()=>S.A[S.funnel]||[];
+const hashId=s=>{let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))>>>0;return h%100};
+const isCtrl=x=>hashId(x.c.id)<S.ctrl;
+const reason=x=>x.a.up.length&&x.a.seg!=='fading'&&x.a.seg!=='due'?'К празднику: '+x.a.up[0].n+', через '+x.a.up[0].left+' '+pl(x.a.up[0].left,['день','дня','дней']):x.a.seg==='due'?'Пора по ритму':x.a.seg==='fading'?'Пропадает, пауза '+(x.a.idx?x.a.idx.toFixed(1):'')+'× от обычной':x.a.seg==='sleep'?'Давно не покупал':x.a.seg==='new'?'Одна покупка':'Покупает по ритму';
+const pillSeg=s=>'<span class="pill s-'+s+'">'+SEG[s]+'</span>';
+const verdict=x=>x.r.length?'<span class="pill p-no" title="'+esc(x.r.join('; '))+'">Нельзя: '+esc(x.r[0])+(x.r.length>1?' +'+(x.r.length-1):'')+'</span>':'<span class="pill p-yes">Можно писать</span>';
+
+/* ---------- импорт CSV ---------- */
+function csvParse(t){
+  t=t.replace(/^\ufeff/,'');const first=t.split(/\r?\n/,1)[0];
+  const d=[';','\t',','].map(x=>[x,first.split(x).length]).sort((a,b)=>b[1]-a[1])[0][0];
+  const rows=[];let row=[],c='',q=false;
+  for(let i=0;i<t.length;i++){const ch=t[i];
+    if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}
+    else if(ch==='"')q=true;
+    else if(ch===d){row.push(c);c=''}
+    else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;row.push(c);c='';if(row.some(x=>x.trim()!==''))rows.push(row);row=[]}
+    else c+=ch}
+  row.push(c);if(row.some(x=>x.trim()!==''))rows.push(row);return rows;
+}
+function pDate(s){s=String(s||'').trim();let m=s.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/);if(m)return dayOf(+m[3],+m[2],+m[1]);m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return dayOf(+m[1],+m[2],+m[3]);return null}
+const pSum=s=>{const v=parseFloat(String(s||'').replace(/[\s ]/g,'').replace(',','.').replace(/[^\d.]/g,''));return isFinite(v)?v:0};
+const yes=s=>/^\s*(да|yes|true|1|есть|y|согласен|согласна)/i.test(String(s||''));
+const normPhone=s=>{let d=String(s||'').replace(/\D/g,'');if(d.length===11&&d[0]==='8')d='7'+d.slice(1);if(d.length===10)d='7'+d;return d};
+function importCsv(text,fallbackFunnel,assumeConsent){
+  const rows=csvParse(text);if(rows.length<2)return'В файле нет строк с данными.';
+  const H=rows[0].map(h=>h.trim()),used=new Set();
+  const col=(re)=>{const i=H.findIndex((h,k)=>!used.has(k)&&re.test(h));if(i>=0)used.add(i);return i};
+  const cF=col(/воронк/i),cP=col(/телефон|phone/i),cN=col(/контакт|клиент|фио|имя/i),cD=col(/дата.*(закры|оплат|заказ|сделк)|^дата/i),
+        cS=col(/бюджет|сумм|стоимост/i),cI=col(/товар|состав|позици|букет/i),cC=col(/соглас/i),cO=col(/отказ|не\s*писать|отпис/i),
+        cL=col(/последн.*(рассыл|сообщ)/i),cSt=col(/статус|этап/i),cCo=col(/жалоб/i);
+  if(cD<0||cS<0)return'Не нашёл колонки с датой сделки и суммой. Нужны заголовки вроде «Дата закрытия» и «Бюджет».';
+  const by={};let deals=0,skipped=0;
+  for(const r of rows.slice(1)){
+    if(cSt>=0){const st=r[cSt]||'';if(!/успеш|реализ|оплач/i.test(st)||/не\s*реализ|провал/i.test(st)){skipped++;continue}}
+    const d=pDate(r[cD]),sum=pSum(r[cS]);if(d==null||!sum||d>today){skipped++;continue}
+    const f=(cF>=0&&r[cF]&&r[cF].trim())||fallbackFunnel;
+    const ph=cP>=0?normPhone(r[cP]):'',nm=cN>=0?(r[cN]||'').trim():'';
+    const key=ph.length>=11?ph:'n:'+nm.toLowerCase();if(key==='n:'){skipped++;continue}
+    const items=cI>=0?String(r[cI]||'').split(/\s*[;|,]\s*/).map(x=>x.trim()).filter(Boolean):[];
+    by[f]=by[f]||{};
+    const c=by[f][key]=by[f][key]||{id:f.slice(0,2).toUpperCase()+'-'+(1000+Object.keys(by[f]).length),name:nm||'Без имени',phone:ph,
+      consent:cC>=0?yes(r[cC]):assumeConsent,optout:cO>=0?yes(r[cO]):false,complaint:cCo>=0?yes(r[cCo]):false,noWa:false,lastMsg:null,msgs30:0,orders:[]};
+    if(cC>=0&&yes(r[cC]))c.consent=true;if(cO>=0&&yes(r[cO]))c.optout=true;
+    if(cL>=0){const lm=pDate(r[cL]);if(lm!=null&&(c.lastMsg==null||lm>c.lastMsg)){c.lastMsg=lm;c.msgs30=today-lm<30?1:0}}
+    c.orders.push({d,sum,items});deals++;
+  }
+  const fs=Object.keys(by);if(!fs.length)return'Не нашёл ни одной подходящей сделки. Проверьте даты (дд.мм.гггг) и статус «Успешно».';
+  fs.forEach(f=>{S.data[f]=Object.values(by[f]);S.src[f]='csv';build(f)});
+  S.sel=null;S.batch=null;
+  logAdd('Загружена выгрузка: '+deals+' '+pl(deals,['сделка','сделки','сделок'])+', воронки: '+fs.join(', ')+(cC<0?'. Колонки согласия нет: '+(assumeConsent?'согласие принято по подтверждению пользователя':'все контакты без согласия'):''));
+  if(!fs.includes(S.funnel))S.funnel=fs[0];
+  return 'Готово: '+deals+' '+pl(deals,['сделка','сделки','сделок'])+' в воронках: '+fs.join(', ')+(skipped?'. Пропущено строк: '+skipped:'')+(cC<0?'. В файле нет колонки согласия: '+(assumeConsent?'контакты помечены как давшие согласие по вашему подтверждению.':'все контакты помечены как без согласия, рассылка заблокирована.'):'.');
+}
+
+/* ---------- экраны ---------- */
+function barsHtml(items,max){return'<div class="bars">'+items.map(i=>'<div class="bar s-'+i.k+'"><span style="color:var(--ink)">'+esc(i.l)+'</span><i style="width:'+Math.max(1,i.v/max*100)+'%"></i><b style="color:var(--ink)">'+fmtN(i.v)+'</b></div>').join('')+'</div>'}
+function vPulse(){
+  const L=cur(),cnt={ok:0,due:0,fading:0,sleep:0,new:0};L.forEach(x=>cnt[x.a.seg]++);
+  const y0=today-365;let rev=0;const act=new Set(),rep=new Set();const mon={};
+  L.forEach(x=>{let k=0;x.a.sorted.forEach(o=>{if(o.d>y0){rev+=o.sum;k++;const dt=new Date(o.d*DAY);const key=dt.getUTCFullYear()*12+dt.getUTCMonth();mon[key]=(mon[key]||0)+o.sum}});if(k){act.add(x.c.id);if(k>1)rep.add(x.c.id)}});
+  const risk=L.filter(x=>x.a.seg==='due'||x.a.seg==='fading').reduce((s,x)=>s+x.a.stake,0);
+  const canW=L.filter(x=>(x.a.seg==='due'||x.a.seg==='fading')&&!x.r.length).length;
+  const now=new Date(),nk=now.getUTCFullYear()*12+now.getUTCMonth();const ms=[];for(let i=11;i>=0;i--){const k=nk-i;ms.push({k,l:MONTHS[((k%12)+12)%12],v:mon[k]||0})}
+  const mx=Math.max(1,...ms.map(m=>m.v));
+  const up=[];const seen={};L.forEach(x=>x.a.up.forEach(u=>{seen[u.n]=seen[u.n]||{n:u.n,left:u.left,c:0};seen[u.n].c++}));Object.values(seen).sort((a,b)=>a.left-b.left).forEach(u=>up.push(u));
+  return'<div class="grid tiles">'+
+   tile('Клиентов в базе',fmtN(L.length),'активных за 12 мес: '+fmtN(act.size))+
+   tile('Покупают как обычно',fmtN(cnt.ok),'ритм в норме','good')+
+   tile('Пора напомнить',fmtN(cnt.due),'пауза 0,9–1,6 от ритма','warn')+
+   tile('Пропадают',fmtN(cnt.fading),'пауза 1,6–3 ритма','bad')+
+   tile('Спящие',fmtN(cnt.sleep),'пауза больше 3 ритмов','vio')+
+   '</div><div class="grid two" style="margin-top:12px">'+
+   '<div class="card"><h2>Сколько это стоит</h2><div class="kv"><div><span>Выручка за 12 мес</span><b>'+rub(rev)+'</b></div><div><span>Купили повторно из активных</span><b>'+(act.size?Math.round(rep.size/act.size*100):0)+'%</b></div><div><span>Зависит от напоминания (оценка, 90 дн)</span><b>'+rub(risk)+'</b></div><div><span>Из них можно писать сейчас</span><b>'+fmtN(canW)+' '+pl(canW,['клиент','клиента','клиентов'])+'</b></div></div><p class="note">Оценка: средний чек клиента × ожидаемое число его заказов за 90 дней при обычном ритме, только для сегментов «пора» и «пропадает». Это продажи, не прибыль, и не прогноз эффекта рассылки.</p></div>'+
+   '<div class="card"><h2>Сегменты</h2>'+barsHtml([{k:'ok',l:SEG.ok,v:cnt.ok},{k:'due',l:SEG.due,v:cnt.due},{k:'fading',l:SEG.fading,v:cnt.fading},{k:'sleep',l:SEG.sleep,v:cnt.sleep},{k:'new',l:'Новички, 1 покупка',v:cnt.new}],Math.max(1,...Object.values(cnt)))+'</div>'+
+   '<div class="card"><h2>Выручка по месяцам, ₽ тыс.</h2><div class="cols">'+ms.map(m=>'<div class="col"><em>'+Math.round(m.v/1000)+'</em><i style="height:'+(m.v/mx*100)+'%"></i></div>').join('')+'</div><div class="cl">'+ms.map(m=>'<span>'+m.l+'</span>').join('')+'</div></div>'+
+   '<div class="card"><h2>Ближайшие праздники</h2>'+(up.length?'<table><tr><th>Повод</th><th class="num">Через</th><th class="num">Клиентов с привязкой</th></tr>'+up.map(u=>'<tr><td>'+esc(u.n)+'</td><td class="num">'+u.left+' дн</td><td class="num">'+fmtN(u.c)+'</td></tr>').join('')+'</table>':'<p class="note">В ближайшие 100 дней нет праздников, к которым покупали ваши клиенты.</p>')+'</div></div>';
+}
+function tile(l,v,n,cls){return'<div class="card tile '+(cls||'')+'"><div class="l">'+esc(l)+'</div><div class="v">'+v+'</div><div class="n">'+esc(n||'')+'</div></div>'}
+
+function workList(){
+  const f=S.f,q=f.q.trim().toLowerCase();
+  let L=cur().filter(x=>{
+    const s=x.a.seg;
+    if(f.seg==='work'&&!(s==='due'||s==='fading'||(x.a.up.length&&x.a.up[0].left<=21)))return false;
+    if(['due','fading','sleep','new','ok'].includes(f.seg)&&s!==f.seg)return false;
+    if(f.seg==='season'&&!x.a.up.length)return false;
+    if(f.cell){const cc=f.cell.split('|').map(Number);if(rowOf(x)!==cc[0]||colOf(x)!==cc[1])return false}
+    if(f.ok&&x.r.length)return false;
+    if(q&&!(x.c.name.toLowerCase().includes(q)||x.c.id.toLowerCase().includes(q)||x.c.phone.includes(q.replace(/\D/g,'')||'§')))return false;
+    return true;});
+  return L.sort((a,b)=>b.a.stake-a.a.stake);
+}
+function vToday(){
+  const L=workList(),all=cur();
+  const ex={};all.forEach(x=>{if(x.a.seg==='due'||x.a.seg==='fading')x.r.forEach(k=>ex[k]=(ex[k]||0)+1)});
+  const opts=[['work','Рабочий список'],['due','Пора напомнить'],['fading','Пропадают'],['sleep','Спящие'],['season','Привязаны к празднику'],['new','Новички'],['ok','Покупают как обычно'],['all','Все']];
+  return'<div class="card"><div class="bar-row"><select id="fSeg" aria-label="Сегмент">'+opts.map(o=>'<option value="'+o[0]+'"'+(S.f.seg===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select>'+
+   '<label class="chk"><input type="checkbox" id="fOk"'+(S.f.ok?' checked':'')+'> Только те, кому можно писать</label>'+
+   '<input type="text" id="fQ" placeholder="Имя, телефон или ID" value="'+esc(S.f.q)+'" aria-label="Поиск"></div>'+
+   (S.f.cell?'<p><span class="chip">Группа с карты: '+esc(ROWS[+S.f.cell.split('|')[0]])+', пауза '+esc(COLS[+S.f.cell.split('|')[1]])+'<button id="cellX" aria-label="Сбросить группу">×</button></span></p>':'')+'<p class="note">Найдено: '+fmtN(L.length)+'. Строки отсортированы по оценке выручки за 90 дней. Нажмите на строку, чтобы открыть карточку.</p>'+
+   '<div class="tw"><table><thead><tr><th>Клиент</th><th>Сегмент</th><th class="num">Пауза / обычно</th><th class="num">Ср. чек</th><th>Повод</th><th>Решение</th></tr></thead><tbody>'+
+   L.slice(0,100).map(x=>'<tr class="click" data-id="'+esc(x.c.id)+'"><td><b>'+esc(x.c.name)+'</b><div class="note">'+esc(x.c.id)+' · '+esc(fmtPhone(x.c.phone))+'</div></td><td>'+pillSeg(x.a.seg)+'</td><td class="num">'+x.a.pause+' дн / '+(x.a.avgInt?Math.round(x.a.avgInt)+' дн':'—')+'</td><td class="num">'+rub(x.a.avgCheck)+'</td><td>'+esc(reason(x))+'</td><td>'+verdict(x)+'</td></tr>').join('')+
+   (L.length?'':'<tr><td colspan="6" class="note">Никого нет по этим условиям.</td></tr>')+'</tbody></table></div>'+(L.length>100?'<p class="note">Показаны первые 100 из '+fmtN(L.length)+'.</p>':'')+'</div>'+
+   '<div class="card" style="margin-top:12px"><h2>Кому писать нельзя среди «пора» и «пропадают»</h2>'+(Object.keys(ex).length?'<table><tbody>'+Object.entries(ex).sort((a,b)=>b[1]-a[1]).map(e=>'<tr><td>'+esc(e[0])+'</td><td class="num">'+fmtN(e[1])+'</td></tr>').join('')+'</tbody></table><p class="note">Один клиент может попасть в несколько причин.</p>':'<p class="note">Исключений нет.</p>')+'</div>';
+}
+
+const ROWS=['1 покупка','2 покупки','3 покупки','4–9','10 и больше'],COLS=['до 30 дн','31–60','61–90','91–180','181–365','больше года'];
+const rowOf=x=>{const n=x.a.n;return n===1?0:n===2?1:n===3?2:n<=9?3:4};
+const colOf=x=>{const p=x.a.pause;return p<=30?0:p<=60?1:p<=90?2:p<=180?3:p<=365?4:5};
+function vMap(){
+  const L=cur(),M=ROWS.map(()=>COLS.map(()=>({n:0,ok:0,sum:0})));
+  L.forEach(x=>{const c=M[rowOf(x)][colOf(x)];c.n++;if(!x.r.length)c.ok++;c.sum+=x.a.avgCheck});
+  const mx=Math.max(1,...M.flat().map(c=>c.n)),total=L.length;
+  const one=L.filter(x=>x.a.n===1).length;
+  let h='<div class="grid two" style="grid-template-columns:minmax(0,2fr) minmax(240px,1fr)"><div class="card"><div class="heat"><div></div>'+COLS.map(c=>'<div class="h">'+c+'</div>').join('');
+  M.forEach((row,ri)=>{h+='<div class="r">'+ROWS[ri]+'</div>'+row.map((c,ci)=>{const k=c.n?Math.min(7,Math.max(0,Math.round(c.n/mx*7))):0;return'<button class="hc'+(k>=5?' dk':'')+'" style="background:var(--heat'+k+')" data-cell="'+ri+'|'+ci+'" aria-label="'+ROWS[ri]+', пауза '+COLS[ci]+': '+c.n+'">'+c.n+'</button>'}).join('')});
+  h+='</div><div class="legend">меньше<i></i>больше</div><p class="note">Строки: сколько раз клиент покупал. Столбцы: сколько прошло с последней покупки. Число в ячейке — клиентов. Нажмите на ячейку: это уже готовый список.</p>'+
+   '<p style="margin-top:12px">Один раз купили <b>'+fmtN(one)+'</b> из '+fmtN(total)+' — <b>'+(total?Math.round(one/total*100):0)+'%</b>.</p></div>';
+  const sel=S.mapSel&&M[S.mapSel[0]][S.mapSel[1]];
+  h+='<div class="card tile vio"><div class="l">'+(S.mapSel?esc(ROWS[S.mapSel[0]])+', пауза '+esc(COLS[S.mapSel[1]]):'Выберите ячейку на карте')+'</div>'+(sel?'<div class="v">'+fmtN(sel.n)+'</div><div class="n">клиентов в группе</div><div class="v" style="color:var(--good);margin-top:14px">'+fmtN(sel.ok)+'</div><div class="n">из них можно писать</div><div class="v" style="color:var(--ink);margin-top:14px;font-size:24px">'+(sel.n?rub(sel.sum/sel.n):'—')+'</div><div class="n">средний чек группы</div><div class="bar-row" style="margin-top:14px"><button class="btn primary" id="mapOpen">Открыть список</button></div>':'<p class="note">Здесь появятся размер группы, сколько из неё можно писать и средний чек.</p>')+'</div></div>';
+  return h;
+}
+function findX(id){return cur().find(x=>x.c.id===id)}
+function vCard(){
+  const q=S.cardQ.trim().toLowerCase();
+  const res=q?cur().filter(x=>x.c.name.toLowerCase().includes(q)||x.c.id.toLowerCase().includes(q)||(q.replace(/\D/g,'').length>3&&x.c.phone.includes(q.replace(/\D/g,'')))).slice(0,8):[];
+  let x=S.sel&&findX(S.sel);if(!x){x=workList()[0]||cur()[0];if(x)S.sel=x.c.id}
+  let h='<div class="card"><div class="bar-row"><input type="text" id="cQ" placeholder="Найти клиента: имя, телефон, ID" value="'+esc(S.cardQ)+'" style="min-width:260px" aria-label="Найти клиента">'+res.map(r=>'<button class="btn" data-pick="'+esc(r.c.id)+'">'+esc(r.c.name)+' · '+esc(r.c.id)+'</button>').join('')+'</div></div>';
+  if(!x)return h+'<p class="note">База пуста.</p>';
+  const a=x.a,c=x.c;
+  const recoNo=x.r.length;
+  const reco=recoNo?'Не писать. '+x.r.join('; ')+'.':a.seg==='due'?'Можно написать сейчас: клиент подошёл к своему обычному сроку.':a.seg==='fading'?'Можно написать один раз с конкретным поводом. Если не ответит, не повторять в этом месяце.':a.seg==='sleep'?'Давно не покупал. Включайте только в пробную группу с контролем, ждать быстрого возврата не стоит.':a.seg==='new'?'Одна покупка: ритма ещё нет, индекс «пора» ненадёжен.':'Покупает как обычно, напоминание не нужно.';
+  h+='<div class="card" style="margin-top:12px"><div class="hol"><div><h2 style="margin:0">'+esc(c.name)+'</h2><div class="note">'+esc(c.id)+' · '+esc(fmtPhone(c.phone))+'</div></div>'+pillSeg(a.seg)+'</div>'+
+   '<div class="reco'+(recoNo?' no':'')+'"><b>Рекомендация:</b> '+esc(reco)+'</div>'+
+   '<div class="kv"><div><span>Покупок</span><b>'+a.n+'</b></div><div><span>Всего</span><b>'+rub(a.total)+'</b></div><div><span>Средний чек</span><b>'+rub(a.avgCheck)+'</b></div><div><span>Первая покупка</span><b>'+dstr(a.first)+'</b></div><div><span>Последняя покупка</span><b>'+dstr(a.last)+'</b></div><div><span>Средний интервал</span><b>'+(a.avgInt?Math.round(a.avgInt)+' дн':'—')+'</b></div><div><span>Медиана интервалов</span><b>'+(a.med!=null?Math.round(a.med)+' дн':'—')+'</b></div><div><span>Пауза сейчас</span><b>'+a.pause+' дн</b></div><div><span>Индекс «пора»</span><b>'+(a.idx!=null?a.idx.toFixed(2):'—')+'</b></div></div>'+
+   '<h3>Что берёт и к каким датам</h3><p style="margin:0">'+(a.top.length?esc(a.top.slice(0,4).join(', ')):'нет данных о составе')+'. '+(a.tied.length?'Покупки рядом с датами: '+esc(a.tied.join(', '))+'.':'Привязки к датам не видно.')+'</p>'+
+   '<h3>Проверки перед отправкой</h3><div class="tw"><table><tbody>'+CHECKS.map(k=>{const bad=x.r.includes(k[1]);return'<tr><td>'+esc(k[1])+'</td><td><span class="pill '+(bad?'p-no':'p-yes')+'">'+(bad?'Стоп':'Пройдена')+'</span></td></tr>'}).join('')+'</tbody></table></div>'+
+   '<h3>История заказов</h3><div class="tw"><table><thead><tr><th>Дата</th><th class="num">Сумма</th><th>Состав</th></tr></thead><tbody>'+a.sorted.slice().reverse().map(o=>'<tr><td>'+dstr(o.d)+'</td><td class="num">'+rub(o.sum)+'</td><td>'+esc(o.items.join(', ')||'—')+'</td></tr>').join('')+'</tbody></table></div></div>';
+  return h;
+}
+function vSeason(){
+  const L=cur();const seen={};
+  L.forEach(x=>x.a.up.forEach(u=>{const s=seen[u.n]=seen[u.n]||{n:u.n,left:u.left,all:0,ok:0,items:{}};s.all++;if(!x.r.length)s.ok++;x.a.top.slice(0,1).forEach(i=>s.items[i]=(s.items[i]||0)+1)}));
+  const H=Object.values(seen).sort((a,b)=>a.left-b.left);
+  const it={};
+  L.forEach(x=>x.a.sorted.forEach(o=>{o.items.forEach(i=>{const t=it[i]=it[i]||{n:i,o:0,cl:new Set(),r:0,p:0};t.cl.add(x.c.id);
+    if(o.d>today-365)t.o++;if(o.d>today-90)t.r++;if(o.d>today-365-90&&o.d<=today-365)t.p++})}));
+  const T=Object.values(it).sort((a,b)=>b.r-a.r);
+  return'<div class="grid two">'+(H.length?H.map(s=>'<div class="card"><div class="hol"><h2 style="margin:0">'+esc(s.n)+'</h2><span class="pill s-due">через '+s.left+' '+pl(s.left,['день','дня','дней'])+'</span></div><p>Клиентов с покупками рядом с этой датой: <b>'+fmtN(s.all)+'</b>, из них можно писать: <b>'+fmtN(s.ok)+'</b>.</p><p class="note">Чаще всего берут: '+esc(Object.entries(s.items).sort((a,b)=>b[1]-a[1]).slice(0,3).map(e=>e[0]).join(', ')||'—')+'</p><button class="btn" data-season="1">Открыть в списках</button></div>').join(''):'<div class="card"><p class="note">В ближайшие 100 дней нет праздников, к которым покупали клиенты этой воронки.</p></div>')+'</div>'+
+  '<div class="card" style="margin-top:12px"><h2>Товары: что покупают сейчас и год назад</h2><div class="tw"><table><thead><tr><th>Позиция</th><th class="num">Заказов за 12 мес</th><th class="num">Клиентов за всё время</th><th class="num">За 90 дн</th><th class="num">Те же 90 дн год назад</th></tr></thead><tbody>'+T.map(t=>'<tr><td>'+esc(t.n)+'</td><td class="num">'+fmtN(t.o)+'</td><td class="num">'+fmtN(t.cl.size)+'</td><td class="num">'+fmtN(t.r)+'</td><td class="num">'+fmtN(t.p)+'</td></tr>').join('')+'</tbody></table></div><p class="note">Считаются заказы, в составе которых есть позиция. Если в выгрузке нет колонки с составом, таблица пустая.</p></div>';
+}
+function prepBatch(){
+  const pool=cur().filter(x=>!x.r.length&&(x.a.seg==='due'||x.a.seg==='fading'||(x.a.up.length&&x.a.up[0].left<=21))).sort((a,b)=>b.a.stake-a.a.stake);
+  const ctrl=pool.filter(isCtrl),send=pool.filter(x=>!isCtrl(x));
+  const size=Math.min(S.bsize,S.limit);
+  S.batch={pool:pool.length,ctrl:ctrl.length,rest:Math.max(0,send.length-size),rows:send.slice(0,size)};
+  logAdd('Подготовлена пачка: '+S.batch.rows.length+', контрольная группа: '+ctrl.length);
+}
+const msgFor=x=>S.tpl.replace(/\{имя\}/g,x.c.name.split(' ')[0]).replace(/\{магазин\}/g,S.funnel).replace(/\{товар\}/g,x.a.top[0]||'цветы');
+function vSend(){
+  const b=S.batch;
+  return'<div class="grid two"><div class="card"><h2>Настройки пачки</h2><div class="bar-row"><label>Дневной лимит <input type="number" id="sLim" min="1" value="'+S.limit+'" style="width:90px"></label><label>Размер пачки <input type="number" id="sBs" min="1" value="'+S.bsize+'" style="width:90px"></label><label>Контрольная группа, % <input type="number" id="sCt" min="0" max="50" value="'+S.ctrl+'" style="width:80px"></label></div>'+
+  '<label for="sTpl" class="note">Текст сообщения. Подстановки: {имя}, {товар}, {магазин}</label><textarea id="sTpl">'+esc(S.tpl)+'</textarea>'+
+  '<p class="note">Контрольная группа не получает сообщение, чтобы потом сравнить долю купивших. Вне 24-часового окна WhatsApp принимает только одобренные шаблоны: проверьте текст у провайдера рассылки.</p><button class="btn primary" id="sPrep">Подготовить пачку</button></div>'+
+  '<div class="card"><h2>Пачка</h2>'+(b?'<div class="kv"><div><span>Подходят под условия</span><b>'+fmtN(b.pool)+'</b></div><div><span>В контрольной группе</span><b>'+fmtN(b.ctrl)+'</b></div><div><span>В этой пачке</span><b>'+fmtN(b.rows.length)+'</b></div><div><span>Останется на другие дни</span><b>'+fmtN(b.rest)+'</b></div></div><div class="msgs">'+b.rows.slice(0,3).map(x=>'<div class="msg"><b>'+esc(x.c.name)+'</b> · '+esc(fmtPhone(x.c.phone))+'<br>'+esc(msgFor(x))+'</div>').join('')+'</div>'+
+  '<div class="bar-row" style="margin-top:12px"><button class="btn" id="sCopy"'+(b.rows.length?'':' disabled')+'>Скопировать список для рассылки</button><button class="btn primary" id="sSent"'+(b.rows.length?'':' disabled')+'>Отметить как отправленную</button></div><p class="note" id="sMsg"></p>':'<p class="note">Нажмите «Подготовить пачку». В пачку попадают только клиенты, прошедшие все проверки.</p>')+'<p class="note">Прототип ничего не отправляет сам: список копируется, отправка идёт через ваш мессенджер или сервис рассылки. При отметке «отправлена» все проверки запускаются заново.</p></div></div>';
+}
+const STEMS=[['роз','роз'],['тюльпан','тюльпан'],['пион','пион'],['хризантем','хризантем'],['гербер','гербер'],['орхиде','орхиде'],['гортензи','гортензи'],['эустом','эустом'],['гвоздик','гвоздик'],['зелен','зелен']];
+function runAi(q){
+  const t=q.toLowerCase();let L=cur().slice();const notes=[];
+  let m=t.match(/(\d+)\s*(дн|дней|день|дня)/);if(m){const n=+m[1];L=L.filter(x=>x.a.pause>=n);notes.push('пауза от '+n+' дн')}
+  m=t.match(/(?:чек|сумм\w*)[^\d]{0,15}(\d[\d\s]*)/);if(m){const n=+m[1].replace(/\s/g,'');L=L.filter(x=>x.a.avgCheck>=n);notes.push('средний чек от '+fmtN(n)+' ₽')}
+  if(/спящ/.test(t)){L=L.filter(x=>x.a.seg==='sleep');notes.push('сегмент «Спящий»')}
+  if(/пропад/.test(t)){L=L.filter(x=>x.a.seg==='fading');notes.push('сегмент «Пропадает»')}
+  if(/пора|напомн/.test(t)){L=L.filter(x=>x.a.seg==='due');notes.push('сегмент «Пора напомнить»')}
+  if(/постоян|регуляр/.test(t)){L=L.filter(x=>x.a.n>=3);notes.push('3 и больше покупок')}
+  [['8 марта','8 Марта'],['14 февраля','14 февраля'],['1 сентября','1 сентября'],['новый год|новогод','Новый год'],['матер','День матери']].forEach(h=>{if(new RegExp(h[0]).test(t)){L=L.filter(x=>x.a.tied.includes(h[1]));notes.push('покупали к дате «'+h[1]+'»')}});
+  STEMS.forEach(s=>{if(t.includes(s[0])){L=L.filter(x=>x.a.sorted.some(o=>o.items.some(i=>i.toLowerCase().includes(s[1]))));notes.push('брали «'+s[0]+'…»')}});
+  if(/можно писать|без отказ/.test(t)){L=L.filter(x=>!x.r.length);notes.push('проходят все проверки')}
+  if(!notes.length)return{notes:[],rows:[]};
+  return{notes,rows:L.sort((a,b)=>b.a.stake-a.a.stake)};
+}
+function vAi(){
+  const r=S.aiRes;
+  return'<div class="card"><h2>Поиск клиентов запросом</h2><div class="bar-row"><input type="text" id="aiQ" style="flex:1;min-width:240px" placeholder="Например: пропали больше 60 дней, брали розы, чек от 5000" value="'+esc(S.aiq)+'" aria-label="Запрос"><button class="btn primary" id="aiGo">Найти</button></div>'+
+  '<p class="note">Это поиск по правилам, не нейросеть: понимает паузу в днях, чек, сегменты, праздники, названия цветов и «можно писать». Результат показывает только ID, без имён и телефонов.</p>'+
+  (r?(r.notes.length?'<p>Понял так: '+esc(r.notes.join('; '))+'. Найдено: <b>'+fmtN(r.rows.length)+'</b></p><div class="tw"><table><thead><tr><th>ID</th><th>Сегмент</th><th class="num">Пауза</th><th class="num">Ср. чек</th><th>Берёт</th><th>Решение</th></tr></thead><tbody>'+r.rows.slice(0,50).map(x=>'<tr class="click" data-id="'+esc(x.c.id)+'"><td>'+esc(x.c.id)+'</td><td>'+pillSeg(x.a.seg)+'</td><td class="num">'+x.a.pause+' дн</td><td class="num">'+rub(x.a.avgCheck)+'</td><td>'+esc(x.a.top.slice(0,2).join(', ')||'—')+'</td><td>'+verdict(x)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="note">Не нашёл в запросе условий. Попробуйте: «спящие, брали пионы» или «покупали к 8 марта, чек от 4000».</p>'):'')+'</div>';
+}
+function vLog(){
+  const roles=[['Владелец','да','да','да','да'],['Руководитель воронки','да','да','да','нет'],['Менеджер','нет (только ID)','нет','нет','нет'],['Аналитик (только чтение)','нет (только ID)','нет','нет','да']];
+  return'<div class="grid two"><div class="card"><h2>Права сотрудников</h2><div class="tw"><table><thead><tr><th>Роль</th><th>Видит имена и телефоны</th><th>Отправляет</th><th>Меняет шаблоны</th><th>Видит журнал</th></tr></thead><tbody>'+roles.map(r=>'<tr>'+r.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')+'</tbody></table></div><p class="note">Это схема для рабочей версии. В прототипе один пользователь, роли не включаются: для них нужен вход и сервер.</p></div>'+
+  '<div class="card"><h2>Журнал этой сессии</h2>'+(S.log.length?'<table><tbody>'+S.log.map(l=>'<tr><td class="num">'+esc(l.t)+'</td><td>'+esc(l.a)+'</td></tr>').join('')+'</tbody></table>':'<p class="note">Пока пусто. Здесь появятся загрузки данных, подготовленные пачки и отметки об отправке.</p>')+'<p class="note">Журнал живёт, пока открыта страница.</p></div></div>';
+}
+
+/* ---------- панель импорта ---------- */
+function importPanel(){
+  const fs=Object.keys(S.data);
+  return'<div class="card" style="margin-bottom:12px"><h2>Загрузка выгрузки из AmoCRM</h2>'+
+  '<div class="drop" id="drop">Перетащите CSV сюда или <button class="btn" id="pick">выберите файл</button><input type="file" id="file" accept=".csv,.tsv,.txt" hidden></div>'+
+  '<p class="note">Файл читается прямо в вашем браузере и никуда не отправляется. Нужны успешные сделки со столбцами: <code>Воронка</code>, <code>Контакт</code>, <code>Телефон</code>, <code>Дата закрытия</code>, <code>Бюджет</code>, по желанию <code>Товары</code>, <code>Согласие на рассылку</code>, <code>Отказ от рассылки</code>, <code>Последняя рассылка</code>. Каждая воронка считается отдельно.</p>'+
+  '<div class="bar-row"><label>Если в файле нет колонки «Воронка», отнести к: <select id="impF">'+fs.map(f=>'<option'+(f===S.funnel?' selected':'')+'>'+esc(f)+'</option>').join('')+'</select></label></div>'+
+  '<label class="chk"><input type="checkbox" id="impC"> Если колонки согласия нет: подтверждаю, что у этих клиентов есть согласие на рекламные сообщения</label>'+
+  '<p class="note" id="impMsg">'+esc(S.imp.msg)+'</p><div class="bar-row"><button class="btn" id="impDemo">Вернуть демо-данные</button><button class="btn" id="impClose">Закрыть</button></div></div>';
+}
+
+/* ---------- рендер ---------- */
+let showImp=false;
+const HEAD={pulse:['Пульс базы','Вся база —','на одном экране.'],today:['Кому написать сегодня','Готовый список —','а не поиск по фильтрам.'],map:['Карта базы','Сколько раз купили —','и как давно.'],card:['Клиент','Один человек —','вся история.'],season:['Товары и сезон','К какой дате','готовиться заранее.'],send:['Отправки','Небольшими пачками,','с проверкой перед каждой.'],ai:['AI-поиск','Спросите словами —','получите список.'],log:['Права и журнал','Кто что сделал —','остаётся в журнале.']};
+const headHtml=()=>{const h=HEAD[S.tab];return'<div class="eyebrow'+(S.tab==='map'?' v':'')+'">'+esc(h[0])+' · '+esc(S.funnel)+'</div><h2 class="big">'+esc(h[1])+'<br><span>'+esc(h[2])+'</span></h2>'};
+function render(focus){
+  const fs=Object.keys(S.data);
+  document.getElementById('funnels').innerHTML=fs.map(f=>'<button class="fb" data-f="'+esc(f)+'" aria-pressed="'+(f===S.funnel)+'">'+esc(f)+'<small>'+fmtN(S.data[f].length)+' '+pl(S.data[f].length,['клиент','клиента','клиентов'])+'</small></button>').join('');
+  const b=document.getElementById('srcBadge');const live=S.src[S.funnel]==='csv';b.textContent=live?(S.server?'Данные AmoCRM · обновлено '+S.updated:'Ваши данные из CSV'):'Демо-данные, не реальные клиенты';b.className='badge'+(live?' live':'');
+  document.getElementById('tabs').innerHTML=TABS.map(t=>'<button role="tab" data-t="'+t[0]+'" aria-selected="'+(t[0]===S.tab)+'">'+t[1]+'</button>').join('');
+  const V={pulse:vPulse,today:vToday,map:vMap,card:vCard,season:vSeason,send:vSend,ai:vAi,log:vLog}[S.tab]();
+  document.getElementById('view').innerHTML=(showImp?importPanel():'')+headHtml()+V;
+  if(focus){const e=document.getElementById(focus);if(e){e.focus();try{const l=e.value.length;e.setSelectionRange(l,l)}catch(_){}}}
+  bind();
+}
+function bind(){
+  const $=id=>document.getElementById(id);
+  document.querySelectorAll('[data-id]').forEach(r=>r.onclick=()=>{S.sel=r.dataset.id;S.tab='card';render()});
+  document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{S.sel=b.dataset.pick;S.cardQ='';render()});
+  document.querySelectorAll('[data-season]').forEach(b=>b.onclick=()=>{S.f.seg='season';S.tab='today';render()});
+  document.querySelectorAll('[data-cell]').forEach(b=>b.onclick=()=>{S.mapSel=b.dataset.cell.split('|').map(Number);render()});
+  if($('mapOpen'))$('mapOpen').onclick=()=>{S.f.cell=S.mapSel.join('|');S.f.seg='all';S.f.ok=false;S.tab='today';render()};
+  if($('cellX'))$('cellX').onclick=()=>{S.f.cell=null;S.f.seg='work';S.f.ok=true;render()};
+  if($('fSeg'))$('fSeg').onchange=e=>{S.f.seg=e.target.value;render()};
+  if($('fOk'))$('fOk').onchange=e=>{S.f.ok=e.target.checked;render()};
+  if($('fQ'))$('fQ').oninput=e=>{S.f.q=e.target.value;render('fQ')};
+  if($('cQ'))$('cQ').oninput=e=>{S.cardQ=e.target.value;render('cQ')};
+  if($('sLim'))$('sLim').onchange=e=>{S.limit=Math.max(1,+e.target.value||1)};
+  if($('sBs'))$('sBs').onchange=e=>{S.bsize=Math.max(1,+e.target.value||1)};
+  if($('sCt'))$('sCt').onchange=e=>{S.ctrl=Math.min(50,Math.max(0,+e.target.value||0))};
+  if($('sTpl'))$('sTpl').oninput=e=>{S.tpl=e.target.value};
+  if($('sPrep'))$('sPrep').onclick=()=>{prepBatch();render()};
+  if($('sCopy'))$('sCopy').onclick=async()=>{const txt=S.batch.rows.map(x=>x.c.phone+'\t'+msgFor(x).replace(/\s+/g,' ')).join('\n');let ok=false;try{await navigator.clipboard.writeText(txt);ok=true}catch(_){}
+    $('sMsg').textContent=ok?'Скопировано: '+S.batch.rows.length+' строк (телефон, табуляция, текст).':'Браузер не дал доступ к буферу обмена. Выделите и скопируйте список вручную.';if(ok)logAdd('Скопирован список для рассылки: '+S.batch.rows.length)};
+  if($('sSent'))$('sSent').onclick=()=>{const f=S.funnel;const ids=new Set(S.batch.rows.map(x=>x.c.id));build(f);
+    const still=cur().filter(x=>ids.has(x.c.id)&&!x.r.length);let n=0;still.forEach(x=>{x.c.lastMsg=today;x.c.msgs30++;n++});const dropped=ids.size-n;build(f);
+    if(S.server&&n){try{fetch('api/sent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phones:still.map(x=>x.c.phone)})})}catch(_){}}
+    logAdd('Отправлена пачка: '+n+(dropped?', снято повторной проверкой: '+dropped:''));S.batch=null;render()};
+  if($('aiGo'))$('aiGo').onclick=()=>{S.aiq=$('aiQ').value;S.aiRes=runAi(S.aiq);logAdd('AI-поиск: «'+S.aiq+'»');render()};
+  if($('aiQ'))$('aiQ').onkeydown=e=>{if(e.key==='Enter')$('aiGo').click()};
+  if($('pick'))$('pick').onclick=()=>$('file').click();
+  const take=file=>{if(!file)return;const fr=new FileReader();fr.onload=()=>{let txt=new TextDecoder('utf-8').decode(fr.result);if(txt.includes('\ufffd'))try{txt=new TextDecoder('windows-1251').decode(fr.result)}catch(_){}
+    S.imp.msg=importCsv(txt,$('impF').value,$('impC').checked);render()};fr.readAsArrayBuffer(file)};
+  if($('file'))$('file').onchange=e=>take(e.target.files[0]);
+  if($('drop')){const d=$('drop');d.ondragover=e=>{e.preventDefault();d.classList.add('over')};d.ondragleave=()=>d.classList.remove('over');d.ondrop=e=>{e.preventDefault();d.classList.remove('over');take(e.dataTransfer.files[0])}}
+  if($('impDemo'))$('impDemo').onclick=()=>{Object.keys(PROF).forEach(f=>{S.data[f]=genDemo(f);S.src[f]='demo';build(f)});S.funnel='Розамания';S.imp.msg='Демо-данные возвращены.';render()};
+  if($('impClose'))$('impClose').onclick=()=>{showImp=false;render()};
+  document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{S.funnel=b.dataset.f;S.sel=null;S.mapSel=null;S.f.cell=null;S.batch=null;S.aiRes=null;render()});
+  document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;render()});
+}
+document.getElementById('importBtn').onclick=()=>{showImp=!showImp;render()};
+Object.keys(PROF).forEach(f=>{S.data[f]=genDemo(f);S.src[f]='demo';build(f)});
+render();
+fetch('data.json',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(j=>{const fs=Object.keys(j.funnels||{});if(!fs.length)return;S.data={};S.src={};fs.forEach(f=>{S.data[f]=j.funnels[f];S.src[f]='csv';build(f)});S.funnel=fs[0];S.server=true;S.updated=j.generated;logAdd('Данные AmoCRM загружены с сервера, обновлены '+j.generated);render()}).catch(()=>{});
+})();
+</script>
+</body>
+</html>

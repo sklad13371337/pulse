@@ -1,0 +1,15 @@
+{
+  "subdomain": "ВАШ_ПОДДОМЕН",
+  "token": "ВСТАВЬТЕ_ДОЛГОСРОЧНЫЙ_ТОКЕН",
+  "funnels": ["Розамания", "Амстердам", "Цветобаза"],
+  "months_back": 24,
+  "sync_hours": 6,
+  "items_field_id": null,
+  "consent_field_id": null,
+  "optout_field_id": null,
+  "assume_consent": false,
+  "host": "127.0.0.1",
+  "port": 8080,
+  "user": "pulse",
+  "password": "ПРИДУМАЙТЕ_ПАРОЛЬ"
+}
