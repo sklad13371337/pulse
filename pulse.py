@@ -6,6 +6,7 @@
 """
 import base64
 import datetime
+import gzip
 import json
 import os
 import re
@@ -23,6 +24,7 @@ SENT_FILE = os.path.join(HERE, "sent.json")       # что мы уже отпр�
 BATCH_FILE = os.path.join(HERE, "batches.json")   # журнал пачек: шаблон, получатели, контрольная группа
 DNC_FILE = os.path.join(HERE, "dnc.json")         # список «не писать»: {телефон: {"d": день, "note": текст}}
 LOCK = threading.Lock()
+CACHE = {}
 
 
 def load_cfg():
@@ -282,12 +284,32 @@ def make_handler(cfg):
             self.end_headers()
             self.wfile.write(body)
 
+        def _send_data(self):
+            """data.json со сжатием gzip и кэшем: файл большой, а меняется редко."""
+            key = tuple(os.path.getmtime(f) if os.path.exists(f) else 0 for f in (DATA_FILE, SENT_FILE, BATCH_FILE, DNC_FILE))
+            with LOCK:
+                c = CACHE.get("data")
+                if not c or c[0] != key:
+                    raw = json.dumps(merged_data(), ensure_ascii=False).encode()
+                    c = CACHE["data"] = (key, raw, gzip.compress(raw, 6))
+            _, raw, gz = c
+            if "gzip" in (self.headers.get("Accept-Encoding") or ""):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Encoding", "gzip")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(len(gz)))
+                self.end_headers()
+                self.wfile.write(gz)
+            else:
+                self._send(200, raw, "application/json; charset=utf-8")
+
         def do_GET(self):
             if not self._auth():
                 return
             path = self.path.split("?")[0]
             if path == "/data.json":
-                self._send(200, json.dumps(merged_data(), ensure_ascii=False).encode(), "application/json; charset=utf-8")
+                self._send_data()
             elif path in ("/", "/index.html"):
                 with open(os.path.join(HERE, "index.html"), "rb") as f:
                     self._send(200, f.read(), "text/html; charset=utf-8")
