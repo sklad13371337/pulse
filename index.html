@@ -119,7 +119,7 @@ const DAY=86400000;
 const today=Math.floor(Date.now()/DAY);
 const MONTHS=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
 const SEG={ok:'Покупает как обычно',due:'Пора напомнить',fading:'Пропадает',sleep:'Спящий',new:'Новичок, 1 покупка'};
-const TABS=[['pulse','Пульс базы'],['today','Списки на сегодня'],['map','Карта базы'],['card','Карточка клиента'],['season','Товары и сезон'],['send','Отправки'],['ai','AI-поиск'],['log','Права и журнал']];
+const TABS=[['pulse','Пульс базы'],['today','Списки на сегодня'],['map','Карта базы'],['card','Карточка клиента'],['top','Лучшие клиенты'],['leads','Лиды'],['season','Товары и сезон'],['send','Отправки'],['results','Результаты'],['ai','Поиск запросом'],['log','Права и журнал']];
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtN=n=>Math.round(n).toLocaleString('ru-RU');
 const rub=n=>fmtN(n)+' ₽';
@@ -132,7 +132,7 @@ const dayOf=(y,m,d)=>Date.UTC(y,m-1,d)/DAY;
 const S={funnel:'Розамания',tab:'pulse',src:{},data:{},A:{},sel:null,mapSel:null,
   f:{seg:'work',ok:true,q:'',cell:null},cardQ:'',aiq:'',aiRes:null,batch:null,
   tpl:'Здравствуйте, {имя}! Это {магазин}. В прошлый раз вы брали: {товар}. Если нужен букет, напишите ответом, соберём к нужному времени.',
-  limit:50,bsize:25,ctrl:10,log:[],imp:{funnel:'',consent:false,msg:''}};
+  limit:50,bsize:25,ctrl:10,log:[],leads:{},batches:[],lk:'all',lcell:null,win:14,cost:0,imp:{funnel:'',consent:false,msg:''}};
 const logAdd=t=>S.log.unshift({t:new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}),a:t});
 
 /* ---------- демо-данные ---------- */
@@ -369,7 +369,7 @@ function prepBatch(){
   const pool=cur().filter(x=>!x.r.length&&(x.a.seg==='due'||x.a.seg==='fading'||(x.a.up.length&&x.a.up[0].left<=21))).sort((a,b)=>b.a.stake-a.a.stake);
   const ctrl=pool.filter(isCtrl),send=pool.filter(x=>!isCtrl(x));
   const size=Math.min(S.bsize,S.limit);
-  S.batch={pool:pool.length,ctrl:ctrl.length,rest:Math.max(0,send.length-size),rows:send.slice(0,size)};
+  S.batch={ctrlPhones:ctrl.map(x=>x.c.phone).filter(Boolean),pool:pool.length,ctrl:ctrl.length,rest:Math.max(0,send.length-size),rows:send.slice(0,size)};
   logAdd('Подготовлена пачка: '+S.batch.rows.length+', контрольная группа: '+ctrl.length);
 }
 const msgFor=x=>S.tpl.replace(/\{имя\}/g,x.c.name.split(' ')[0]).replace(/\{магазин\}/g,S.funnel).replace(/\{товар\}/g,x.a.top[0]||'цветы');
@@ -421,14 +421,98 @@ function importPanel(){
 
 /* ---------- рендер ---------- */
 let showImp=false;
-const HEAD={pulse:['Пульс базы','Вся база —','на одном экране.'],today:['Кому написать сегодня','Готовый список —','а не поиск по фильтрам.'],map:['Карта базы','Сколько раз купили —','и как давно.'],card:['Клиент','Один человек —','вся история.'],season:['Товары и сезон','К какой дате','готовиться заранее.'],send:['Отправки','Небольшими пачками,','с проверкой перед каждой.'],ai:['AI-поиск','Спросите словами —','получите список.'],log:['Права и журнал','Кто что сделал —','остаётся в журнале.']};
+/* ---------- лиды ---------- */
+const LROWS=['1 обращение','2 обращения','3 и больше'],LCOLS=['до 30 дн','31–90','91–180','больше 180'];
+const LKIND={all:'Все',new:'Новые (1 обращение)',rep:'Повторные, не купили',lost:'Покупали, потом не купили'};
+const lrow=x=>x.n===1?0:x.n===2?1:2,lcol=x=>x.pause<=30?0:x.pause<=90?1:x.pause<=180?2:3;
+function leadList(){
+  const raw=(S.leads&&S.leads[S.funnel])||[],byId={};cur().forEach(x=>byId[x.c.id]=x);
+  const out=[];
+  raw.forEach(r=>{
+    if(!r.leads||!r.leads.length)return;
+    const ds=r.leads.map(l=>l.d).sort((a,b)=>a-b),n=ds.length,last=ds[n-1],pause=Math.max(0,today-last);
+    const cl=byId[r.id],bought=cl?cl.a.n:0;
+    let kind;
+    if(!bought)kind=n===1?'new':'rep';
+    else if(last>cl.a.last)kind='lost';
+    else return;
+    const c={id:r.id,name:r.name,phone:r.phone,consent:r.consent,optout:r.optout};
+    const a={n:0,idx:null,pause};
+    const rs=CHECKS.filter(k=>['no_phone','no_consent','optout'].includes(k[0])&&k[2](c,a,{ph:{}})).map(k=>k[1]);
+    out.push({c,n,last,pause,kind,bought,ltv:cl?cl.a.total:0,r:rs});
+  });
+  return out;
+}
+function vLeads(){
+  const L=leadList();
+  if(!L.length)return'<div class="card"><h2>Обращения без покупки</h2><p class="note">Данных пока нет. Раздел наполняется после синхронизации с AmoCRM (первая загрузка после обновления сервиса), в демо-режиме его нет.</p></div>';
+  const cnt={new:0,rep:0,lost:0};L.forEach(x=>cnt[x.kind]++);
+  const F=L.filter(x=>S.lk==='all'||x.kind===S.lk);
+  const M=LROWS.map(()=>LCOLS.map(()=>({n:0,ok:0})));
+  F.forEach(x=>{const c=M[lrow(x)][lcol(x)];c.n++;if(!x.r.length)c.ok++});
+  const mx=Math.max(1,...M.flat().map(c=>c.n));
+  let h='<div class="grid tiles">'+tile('Новые',fmtN(cnt.new),'одно обращение, не купили','good')+tile('Повторные, не купили',fmtN(cnt.rep),'два и больше обращений','warn')+tile('Покупали, потом не купили',fmtN(cnt.lost),'последнее обращение без покупки','bad')+tile('Всего в разделе',fmtN(L.length),'можно писать: '+fmtN(L.filter(x=>!x.r.length).length))+'</div>';
+  h+='<div class="card" style="margin-top:12px"><div class="bar-row">'+Object.keys(LKIND).map(k=>'<button class="btn'+(S.lk===k?' primary':'')+'" data-lk="'+k+'">'+LKIND[k]+'</button>').join('')+'</div>';
+  h+='<div class="heat" style="grid-template-columns:110px repeat(4,1fr)"><div></div>'+LCOLS.map(c=>'<div class="h">'+c+'</div>').join('');
+  M.forEach((row,ri)=>{h+='<div class="r">'+LROWS[ri]+'</div>'+row.map((c,ci)=>{const k=c.n?Math.min(7,Math.max(0,Math.round(c.n/mx*7))):0;return'<button class="hc'+(k>=5?' dk':'')+'" style="background:var(--heat'+k+')" data-lcell="'+ri+'|'+ci+'" aria-label="'+LROWS[ri]+', '+LCOLS[ci]+': '+c.n+'">'+c.n+'</button>'}).join('')});
+  h+='</div><p class="note">Строки: сколько раз человек обращался и не купил. Столбцы: сколько прошло с последнего обращения. Нажмите на ячейку, чтобы увидеть список.</p></div>';
+  let rows=F;if(S.lcell){const cc=S.lcell.split('|').map(Number);rows=F.filter(x=>lrow(x)===cc[0]&&lcol(x)===cc[1])}
+  rows=rows.slice().sort((a,b)=>a.pause-b.pause);
+  h+='<div class="card" style="margin-top:12px"><h2>'+(S.lcell?'Список: '+esc(LROWS[+S.lcell.split('|')[0]])+', '+esc(LCOLS[+S.lcell.split('|')[1]]):'Список')+'</h2><p class="note">Найдено: '+fmtN(rows.length)+'. '+(S.lcell?'<button class="btn" id="lcellX">Показать все</button>':'')+'</p>'+
+   '<div class="tw"><table><thead><tr><th>Контакт</th><th>Тип</th><th class="num">Обращений</th><th class="num">С последнего</th><th class="num">Покупал ранее</th><th>Решение</th></tr></thead><tbody>'+
+   rows.slice(0,100).map(x=>'<tr><td><b>'+esc(x.c.name)+'</b><div class="note">'+esc(x.c.id)+' · '+esc(fmtPhone(x.c.phone))+'</div></td><td>'+esc(LKIND[x.kind])+'</td><td class="num">'+x.n+'</td><td class="num">'+x.pause+' дн</td><td class="num">'+(x.bought?x.bought+' · '+rub(x.ltv):'—')+'</td><td>'+(x.r.length?'<span class="pill p-no" title="'+esc(x.r.join('; '))+'">Нельзя: '+esc(x.r[0])+'</span>':'<span class="pill p-yes">Можно писать</span>')+'</td></tr>').join('')+
+   (rows.length?'':'<tr><td colspan="6" class="note">Никого нет.</td></tr>')+'</tbody></table></div>'+(rows.length>100?'<p class="note">Показаны первые 100 из '+fmtN(rows.length)+'.</p>':'')+'</div>';
+  return h;
+}
+/* ---------- лучшие клиенты ---------- */
+function vTop(){
+  const L=cur(),y0=today-365;
+  const ltv=x=>x.a.sorted.filter(o=>o.d>y0).reduce((s,o)=>s+o.sum,0);
+  const cn=x=>x.a.sorted.filter(o=>o.d>y0).length;
+  const big=x=>Math.max(...x.a.sorted.map(o=>o.sum));
+  const T=[
+   ['Больше всего принесли за 12 месяцев',x=>ltv(x),v=>rub(v),L.filter(x=>ltv(x)>0)],
+   ['Самый высокий средний чек (от 2 покупок)',x=>x.a.avgCheck,v=>rub(v),L.filter(x=>x.a.n>=2)],
+   ['Самый крупный разовый заказ',x=>big(x),v=>rub(v),L],
+   ['Чаще всех покупают (за 12 месяцев)',x=>cn(x),v=>fmtN(v)+' '+pl(v,['покупка','покупки','покупок']),L.filter(x=>cn(x)>0)],
+   ['Больше всего за всё время (LTV)',x=>x.a.total,v=>rub(v),L]
+  ];
+  return'<div class="grid two">'+T.map(t=>{const R=t[3].slice().sort((a,b)=>t[1](b)-t[1](a)).slice(0,10);
+    return'<div class="card"><h2>'+esc(t[0])+'</h2><table><tbody>'+R.map((x,i)=>'<tr class="click" data-id="'+esc(x.c.id)+'"><td class="num">'+(i+1)+'</td><td><b>'+esc(x.c.name)+'</b><div class="note">'+esc(x.c.id)+' · '+pillSeg(x.a.seg).replace(/<[^>]+>/g,'')+'</div></td><td class="num">'+t[2](t[1](x))+'</td></tr>').join('')+(R.length?'':'<tr><td class="note">Нет данных.</td></tr>')+'</tbody></table></div>'}).join('')+'</div>';
+}
+/* ---------- результаты рассылок ---------- */
+function batchStat(b){
+  const by={};cur().forEach(x=>{if(x.c.phone)by[x.c.phone]=x});
+  const grp=ph=>{let buyers=0,rev=0;ph.forEach(p=>{const x=by[p];if(!x)return;const o=x.a.sorted.filter(o=>o.d>b.day&&o.d<=b.day+S.win);if(o.length){buyers++;rev+=o.reduce((s,y)=>s+y.sum,0)}});return{n:ph.length,buyers,rev}};
+  const s=grp(b.phones||[]),c=grp(b.ctrl||[]);
+  return{s,c,done:today>=b.day+S.win};
+}
+function vRes(){
+  const B=(S.batches||[]).filter(b=>b.funnel===S.funnel);
+  let h='<div class="card"><div class="bar-row"><label>Окно после рассылки <select id="rWin">'+[7,14,30].map(n=>'<option value="'+n+'"'+(S.win===n?' selected':'')+'>'+n+' дн</option>').join('')+'</select></label><label>Стоимость одного сообщения, ₽ <input type="number" id="rCost" min="0" step="0.1" value="'+S.cost+'" style="width:90px"></label></div>'+
+   '<p class="note">Считаем покупки, закрытые в AmoCRM после дня отправки и в пределах окна. Контрольная группа не получала сообщение, поэтому её доля купивших показывает, сколько людей купили бы и без рассылки.</p></div>';
+  if(!B.length)return h+'<div class="card" style="margin-top:12px"><p class="note">Пока нет ни одной отправленной пачки. Результаты появятся, когда вы подготовите пачку на вкладке «Отправки» и нажмёте «Отметить как отправленную». Рассылки, отправленные раньше, сервис не помнит: шаблон и контрольная группа для них не сохранялись.</p></div>';
+  const rows=B.map(b=>({b,st:batchStat(b)}));
+  const pct=(a,n)=>n?(a/n*100).toFixed(1)+'%':'—';
+  let sn=0,sb=0,sr=0,cn=0,cb=0,cr=0;rows.forEach(r=>{sn+=r.st.s.n;sb+=r.st.s.buyers;sr+=r.st.s.rev;cn+=r.st.c.n;cb+=r.st.c.buyers;cr+=r.st.c.rev});
+  const cost=sn*S.cost,base=cn>=20?cr/cn:null,inc=base!=null?sr-sn*base:null;
+  h+='<div class="grid tiles" style="margin-top:12px">'+tile('Отправлено',fmtN(sn),rows.length+' '+pl(rows.length,['пачка','пачки','пачек']))+tile('Купили в окне',fmtN(sb),pct(sb,sn)+' от отправленных','good')+tile('Выручка с купивших',rub(sr),'затраты на сообщения: '+rub(cost))+tile('Добавочная выручка (оценка)',inc==null?'мало данных':rub(inc),inc==null?'в контрольной группе меньше 20 человек':'за вычетом того, что купили бы и без рассылки','vio')+'</div>';
+  h+='<div class="card" style="margin-top:12px"><h2>По пачкам</h2><div class="tw"><table><thead><tr><th>Дата</th><th>Шаблон</th><th class="num">Отправлено</th><th class="num">Купили</th><th class="num">Контроль: купили</th><th class="num">Разница</th><th class="num">Выручка</th><th>Окно</th></tr></thead><tbody>'+
+   rows.slice().reverse().map(r=>{const d=r.st.s.n?r.st.s.buyers/r.st.s.n*100:0,e=r.st.c.n?r.st.c.buyers/r.st.c.n*100:null;return'<tr><td>'+dstr(r.b.day)+'</td><td>'+esc((r.b.tpl||'').slice(0,60))+'</td><td class="num">'+fmtN(r.st.s.n)+'</td><td class="num">'+r.st.s.buyers+' · '+pct(r.st.s.buyers,r.st.s.n)+'</td><td class="num">'+(r.st.c.n?r.st.c.buyers+' из '+r.st.c.n+' · '+pct(r.st.c.buyers,r.st.c.n):'нет')+'</td><td class="num">'+(e==null?'—':(d-e>=0?'+':'')+(d-e).toFixed(1)+' п.п.')+'</td><td class="num">'+rub(r.st.s.rev)+'</td><td>'+(r.st.done?'закрыто':'идёт, дней осталось: '+(r.b.day+S.win-today))+'</td></tr>'}).join('')+'</tbody></table></div></div>';
+  const T={};rows.forEach(r=>{const k=(r.b.tpl||'').trim();const t=T[k]=T[k]||{k,n:0,b:0,rev:0,cn:0,cb:0};t.n+=r.st.s.n;t.b+=r.st.s.buyers;t.rev+=r.st.s.rev;t.cn+=r.st.c.n;t.cb+=r.st.c.buyers});
+  h+='<div class="card" style="margin-top:12px"><h2>По шаблонам</h2><div class="tw"><table><thead><tr><th>Текст</th><th class="num">Отправлено</th><th class="num">Доля купивших</th><th class="num">Контроль</th><th class="num">Выручка на сообщение</th></tr></thead><tbody>'+
+   Object.values(T).sort((a,b)=>(b.n?b.b/b.n:0)-(a.n?a.b/a.n:0)).map(t=>'<tr><td>'+esc(t.k.slice(0,90))+'</td><td class="num">'+fmtN(t.n)+'</td><td class="num">'+pct(t.b,t.n)+'</td><td class="num">'+pct(t.cb,t.cn)+'</td><td class="num">'+(t.n?rub(t.rev/t.n):'—')+'</td></tr>').join('')+'</tbody></table></div><p class="note">Пока пачек мало, различия между шаблонами могут быть случайными. Смотрите на них, когда в каждом шаблоне наберётся хотя бы несколько сотен сообщений.</p></div>';
+  return h;
+}
+
+const HEAD={top:['Лучшие клиенты','Кто приносит','больше всего.'],leads:['Лиды','Кто обращался —','и не купил.'],results:['Результаты','Что дала рассылка —','в рублях.'],pulse:['Пульс базы','Вся база —','на одном экране.'],today:['Кому написать сегодня','Готовый список —','а не поиск по фильтрам.'],map:['Карта базы','Сколько раз купили —','и как давно.'],card:['Клиент','Один человек —','вся история.'],season:['Товары и сезон','К какой дате','готовиться заранее.'],send:['Отправки','Небольшими пачками,','с проверкой перед каждой.'],ai:['AI-поиск','Спросите словами —','получите список.'],log:['Права и журнал','Кто что сделал —','остаётся в журнале.']};
 const headHtml=()=>{const h=HEAD[S.tab];return'<div class="eyebrow'+(S.tab==='map'?' v':'')+'">'+esc(h[0])+' · '+esc(S.funnel)+'</div><h2 class="big">'+esc(h[1])+'<br><span>'+esc(h[2])+'</span></h2>'};
 function render(focus){
   const fs=Object.keys(S.data);
   document.getElementById('funnels').innerHTML=fs.map(f=>'<button class="fb" data-f="'+esc(f)+'" aria-pressed="'+(f===S.funnel)+'">'+esc(f)+'<small>'+fmtN(S.data[f].length)+' '+pl(S.data[f].length,['клиент','клиента','клиентов'])+'</small></button>').join('');
   const b=document.getElementById('srcBadge');const live=S.src[S.funnel]==='csv';b.textContent=live?(S.server?'Данные AmoCRM · обновлено '+S.updated:'Ваши данные из CSV'):'Демо-данные, не реальные клиенты';b.className='badge'+(live?' live':'');
   document.getElementById('tabs').innerHTML=TABS.map(t=>'<button role="tab" data-t="'+t[0]+'" aria-selected="'+(t[0]===S.tab)+'">'+t[1]+'</button>').join('');
-  const V={pulse:vPulse,today:vToday,map:vMap,card:vCard,season:vSeason,send:vSend,ai:vAi,log:vLog}[S.tab]();
+  const V={pulse:vPulse,today:vToday,map:vMap,card:vCard,top:vTop,leads:vLeads,season:vSeason,send:vSend,results:vRes,ai:vAi,log:vLog}[S.tab]();
   document.getElementById('view').innerHTML=(showImp?importPanel():'')+headHtml()+V;
   if(focus){const e=document.getElementById(focus);if(e){e.focus();try{const l=e.value.length;e.setSelectionRange(l,l)}catch(_){}}}
   bind();
@@ -454,10 +538,15 @@ function bind(){
     $('sMsg').textContent=ok?'Скопировано: '+S.batch.rows.length+' строк (телефон, табуляция, текст).':'Браузер не дал доступ к буферу обмена. Выделите и скопируйте список вручную.';if(ok)logAdd('Скопирован список для рассылки: '+S.batch.rows.length)};
   if($('sSent'))$('sSent').onclick=()=>{const f=S.funnel;const ids=new Set(S.batch.rows.map(x=>x.c.id));build(f);
     const still=cur().filter(x=>ids.has(x.c.id)&&!x.r.length);let n=0;still.forEach(x=>{x.c.lastMsg=today;x.c.msgs30++;n++});const dropped=ids.size-n;build(f);
-    if(S.server&&n){try{fetch('api/sent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phones:still.map(x=>x.c.phone)})})}catch(_){}}
-    logAdd('Отправлена пачка: '+n+(dropped?', снято повторной проверкой: '+dropped:''));S.batch=null;render()};
+    if(S.server&&n){try{fetch('api/sent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phones:still.map(x=>x.c.phone),ctrl:S.batch.ctrlPhones,funnel:f,tpl:S.tpl})})}catch(_){}}
+    if(n)S.batches.push({id:S.batches.length+1,day:today,funnel:f,tpl:S.tpl,phones:still.map(x=>x.c.phone),ctrl:S.batch.ctrlPhones});logAdd('Отправлена пачка: '+n+(dropped?', снято повторной проверкой: '+dropped:''));S.batch=null;render()};
   if($('aiGo'))$('aiGo').onclick=()=>{S.aiq=$('aiQ').value;S.aiRes=runAi(S.aiq);logAdd('AI-поиск: «'+S.aiq+'»');render()};
   if($('aiQ'))$('aiQ').onkeydown=e=>{if(e.key==='Enter')$('aiGo').click()};
+  document.querySelectorAll('[data-lk]').forEach(b=>b.onclick=()=>{S.lk=b.dataset.lk;S.lcell=null;render()});
+  document.querySelectorAll('[data-lcell]').forEach(b=>b.onclick=()=>{S.lcell=b.dataset.lcell;render()});
+  if($('lcellX'))$('lcellX').onclick=()=>{S.lcell=null;render()};
+  if($('rWin'))$('rWin').onchange=e=>{S.win=+e.target.value;render()};
+  if($('rCost'))$('rCost').onchange=e=>{S.cost=Math.max(0,+e.target.value||0);render()};
   if($('pick'))$('pick').onclick=()=>$('file').click();
   const take=file=>{if(!file)return;const fr=new FileReader();fr.onload=()=>{let txt=new TextDecoder('utf-8').decode(fr.result);if(txt.includes('\ufffd'))try{txt=new TextDecoder('windows-1251').decode(fr.result)}catch(_){}
     S.imp.msg=importCsv(txt,$('impF').value,$('impC').checked);render()};fr.readAsArrayBuffer(file)};
@@ -465,13 +554,13 @@ function bind(){
   if($('drop')){const d=$('drop');d.ondragover=e=>{e.preventDefault();d.classList.add('over')};d.ondragleave=()=>d.classList.remove('over');d.ondrop=e=>{e.preventDefault();d.classList.remove('over');take(e.dataTransfer.files[0])}}
   if($('impDemo'))$('impDemo').onclick=()=>{Object.keys(PROF).forEach(f=>{S.data[f]=genDemo(f);S.src[f]='demo';build(f)});S.funnel='Розамания';S.imp.msg='Демо-данные возвращены.';render()};
   if($('impClose'))$('impClose').onclick=()=>{showImp=false;render()};
-  document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{S.funnel=b.dataset.f;S.sel=null;S.mapSel=null;S.f.cell=null;S.batch=null;S.aiRes=null;render()});
+  document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{S.funnel=b.dataset.f;S.lcell=null;S.sel=null;S.mapSel=null;S.f.cell=null;S.batch=null;S.aiRes=null;render()});
   document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;render()});
 }
 document.getElementById('importBtn').onclick=()=>{showImp=!showImp;render()};
 Object.keys(PROF).forEach(f=>{S.data[f]=genDemo(f);S.src[f]='demo';build(f)});
 render();
-fetch('data.json',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(j=>{const fs=Object.keys(j.funnels||{});if(!fs.length)return;S.data={};S.src={};fs.forEach(f=>{S.data[f]=j.funnels[f];S.src[f]='csv';build(f)});S.funnel=fs[0];S.server=true;S.updated=j.generated;logAdd('Данные AmoCRM загружены с сервера, обновлены '+j.generated);render()}).catch(()=>{});
+fetch('data.json',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(j=>{const fs=Object.keys(j.funnels||{});if(!fs.length)return;S.data={};S.src={};fs.forEach(f=>{S.data[f]=j.funnels[f];S.src[f]='csv';build(f)});S.funnel=fs[0];S.server=true;S.leads=j.leads||{};S.batches=j.batches||[];S.updated=j.generated;logAdd('Данные AmoCRM загружены с сервера, обновлены '+j.generated);render()}).catch(()=>{});
 })();
 </script>
 </body>

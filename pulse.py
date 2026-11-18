@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(HERE, "amo_data.json")   # снимок из AmoCRM
 SENT_FILE = os.path.join(HERE, "sent.json")       # что мы уже отправляли: {телефон: [номера дней]}
+BATCH_FILE = os.path.join(HERE, "batches.json")   # журнал пачек: шаблон, получатели, контрольная группа
 LOCK = threading.Lock()
 
 
@@ -77,6 +78,11 @@ def field_values(entity, field_id=None, code=None):
     return []
 
 
+def truthy(vals):
+    """Поле отписки может быть флажком, датой или текстом: любое непустое значение считаем отпиской."""
+    return any(v not in (None, False, "", 0, "0") for v in vals)
+
+
 def norm_phone(s):
     d = re.sub(r"\D", "", str(s or ""))
     if len(d) == 11 and d[0] == "8":
@@ -98,6 +104,7 @@ def sync(cfg):
         wanted[name] = hit[0]["id"]
     since = int(time.time()) - int(cfg.get("months_back", 24)) * 30 * 86400
     out = {}
+    leads_out = {}
     for fname, pid in wanted.items():
         leads = list(pages(cfg, "/leads", {
             "filter[statuses][0][pipeline_id]": pid,
@@ -132,11 +139,41 @@ def sync(cfg):
             if cfg.get("consent_field_id"):
                 cl["consent"] = any(v is True for v in field_values(c, cfg["consent_field_id"]))
             if cfg.get("optout_field_id"):
-                cl["optout"] = any(v is True for v in field_values(c, cfg["optout_field_id"]))
+                cl["optout"] = truthy(field_values(c, cfg["optout_field_id"]))
             cl["orders"].append({"d": l["closed_at"] // 86400, "sum": l["price"], "items": [i for i in items if i]})
         out[fname] = list(clients.values())
         log("  %s: клиентов %d" % (fname, len(out[fname])))
-    snap = {"generated": datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), "funnels": out}
+        # обращения без покупки (для раздела «Лиды»): открытые и закрытые без реализации
+        try:
+            open_l = [l for l in pages(cfg, "/leads", {
+                "filter[pipeline_id]": pid, "filter[created_at][from]": since, "with": "contacts"}, "leads")
+                if l.get("status_id") != 142]
+            need = sorted({c["id"] for l in open_l for c in (l.get("_embedded") or {}).get("contacts") or []
+                           if c.get("is_main")} - set(contacts))
+            for i in range(0, len(need), 50):
+                for c in pages(cfg, "/contacts", {"filter[id][]": need[i:i + 50]}, "contacts"):
+                    contacts[c["id"]] = c
+            pros = {}
+            for l in open_l:
+                main = [c for c in (l.get("_embedded") or {}).get("contacts") or [] if c.get("is_main")]
+                c = contacts.get(main[0]["id"]) if main else None
+                if not c or not l.get("created_at"):
+                    continue
+                ph = norm_phone((field_values(c, code="PHONE") or [""])[0])
+                key = ph or "c%s" % c["id"]
+                r = pros.setdefault(key, {
+                    "id": "%s-%s" % (prefix, c["id"]), "name": c.get("name") or "Без имени", "phone": ph,
+                    "consent": bool(cfg.get("assume_consent", False)), "optout": False, "leads": []})
+                if cfg.get("consent_field_id"):
+                    r["consent"] = any(v is True for v in field_values(c, cfg["consent_field_id"]))
+                if cfg.get("optout_field_id"):
+                    r["optout"] = truthy(field_values(c, cfg["optout_field_id"]))
+                r["leads"].append({"d": l["created_at"] // 86400, "s": "l" if l.get("status_id") == 143 else "o"})
+            leads_out[fname] = list(pros.values())
+            log("  %s: контактов с обращениями без покупки %d" % (fname, len(leads_out[fname])))
+        except Exception as e:      # лиды не должны ломать основную синхронизацию
+            log("  лиды не загружены:", repr(e))
+    snap = {"generated": datetime.datetime.now().strftime("%d.%m.%Y %H:%M"), "funnels": out, "leads": leads_out}
     with LOCK:
         with open(DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(snap, f, ensure_ascii=False)
@@ -171,7 +208,18 @@ def merged_data():
             if days:
                 c["lastMsg"] = max(days)
                 c["msgs30"] = len([d for d in days if d >= today - 30])
+    snap["batches"] = read_json(BATCH_FILE, [])
     return snap
+
+
+def add_batch(funnel, tpl, phones, ctrl):
+    """Журнал пачек: по нему раздел «Результаты» сравнивает купивших и контрольную группу."""
+    with LOCK:
+        b = read_json(BATCH_FILE, [])
+        b.append({"id": len(b) + 1, "day": int(time.time() // 86400), "funnel": str(funnel), "tpl": str(tpl)[:2000],
+                  "phones": phones, "ctrl": ctrl})
+        with open(BATCH_FILE, "w", encoding="utf-8") as f:
+            json.dump(b, f, ensure_ascii=False)
 
 
 def add_sent(phones):
@@ -224,10 +272,14 @@ def make_handler(cfg):
             if self.path.split("?")[0] == "/api/sent":
                 n = int(self.headers.get("Content-Length") or 0)
                 try:
-                    phones = [str(p) for p in json.loads(self.rfile.read(n)).get("phones", []) if p]
+                    body = json.loads(self.rfile.read(n))
+                    phones = [str(p) for p in body.get("phones", []) if p]
+                    ctrl = [str(p) for p in body.get("ctrl", []) if p]
                 except ValueError:
                     return self._send(400, b"bad json", "text/plain")
                 add_sent(phones)
+                if phones:
+                    add_batch(body.get("funnel", ""), body.get("tpl", ""), phones, ctrl)
                 log("Записано отправок:", len(phones))
                 self._send(200, b"{}", "application/json")
             else:
