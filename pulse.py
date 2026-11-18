@@ -21,6 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(HERE, "amo_data.json")   # снимок из AmoCRM
 SENT_FILE = os.path.join(HERE, "sent.json")       # что мы уже отправляли: {телефон: [номера дней]}
 BATCH_FILE = os.path.join(HERE, "batches.json")   # журнал пачек: шаблон, получатели, контрольная группа
+DNC_FILE = os.path.join(HERE, "dnc.json")         # список «не писать»: {телефон: {"d": день, "note": текст}}
 LOCK = threading.Lock()
 
 
@@ -209,7 +210,34 @@ def merged_data():
                 c["lastMsg"] = max(days)
                 c["msgs30"] = len([d for d in days if d >= today - 30])
     snap["batches"] = read_json(BATCH_FILE, [])
+    dnc = read_json(DNC_FILE, {})
+    snap["dnc"] = dnc
+    for clients in snap["funnels"].values():
+        for c in clients:
+            if c.get("phone") in dnc:
+                c["optout"] = True
+    for rows in (snap.get("leads") or {}).values():
+        for c in rows:
+            if c.get("phone") in dnc:
+                c["optout"] = True
     return snap
+
+
+def dnc_update(add, remove, note):
+    """Список «не писать»: add/remove — любые записи номеров, приводим к виду 7XXXXXXXXXX."""
+    today = int(time.time() // 86400)
+    ok_add = [p for p in (norm_phone(x) for x in add) if len(p) == 11 and p[0] == "7"]
+    bad = len(add) - len(ok_add)
+    rm = {norm_phone(x) for x in remove}
+    with LOCK:
+        d = read_json(DNC_FILE, {})
+        for p in ok_add:
+            d.setdefault(p, {"d": today, "note": str(note)[:200]})
+        for p in rm:
+            d.pop(p, None)
+        with open(DNC_FILE, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False)
+    return d, len(ok_add), bad
 
 
 def add_batch(funnel, tpl, phones, ctrl):
@@ -282,6 +310,17 @@ def make_handler(cfg):
                     add_batch(body.get("funnel", ""), body.get("tpl", ""), phones, ctrl)
                 log("Записано отправок:", len(phones))
                 self._send(200, b"{}", "application/json")
+            elif self.path.split("?")[0] == "/api/dnc":
+                n = int(self.headers.get("Content-Length") or 0)
+                try:
+                    body = json.loads(self.rfile.read(n))
+                    add = [str(x) for x in body.get("add", [])][:5000]
+                    rem = [str(x) for x in body.get("remove", [])][:5000]
+                except ValueError:
+                    return self._send(400, b"bad json", "text/plain")
+                d, added, bad = dnc_update(add, rem, body.get("note", ""))
+                log("Список «не писать»: добавлено %d, не распознано %d, удалено %d, всего %d" % (added, bad, len(rem), len(d)))
+                self._send(200, json.dumps({"dnc": d, "added": added, "bad": bad}).encode(), "application/json")
             else:
                 self._send(404, b"not found", "text/plain")
 
