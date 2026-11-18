@@ -105,7 +105,7 @@ code{background:var(--bg3);padding:1px 6px;border-radius:6px;font-size:13px}
 <div class="wrap">
   <header class="top">
     <div class="brand"><div class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a0f08" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4l2.5-6 4 12 3-9 1.5 3H22"/></svg></div><h1>Пульс базы</h1><span>повторные продажи по воронкам AmoCRM</span></div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="srcBadge" class="badge"></span><button class="btn" id="importBtn">Загрузить выгрузку AmoCRM</button></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span id="srcBadge" class="badge"></span><button class="btn" id="importBtn">Загрузить выгрузку AmoCRM</button><a class="btn" id="logoutBtn" href="/logout" style="display:none;text-decoration:none">Выйти</a></div>
   </header>
   <div class="funnels" id="funnels" role="group" aria-label="Воронка"></div>
   <nav class="tabs" id="tabs" role="tablist" style="margin-top:14px"></nav>
@@ -535,7 +535,7 @@ const HEAD={dnc:['Не писать','Кому писать','нельзя.'],to
 const headHtml=()=>{const h=HEAD[S.tab];return'<div class="eyebrow'+(S.tab==='map'?' v':'')+'">'+esc(h[0])+' · '+esc(S.funnel)+'</div><h2 class="big">'+esc(h[1])+'<br><span>'+esc(h[2])+'</span></h2>'};
 function render(focus){
   if(S.loading){document.getElementById('srcBadge').textContent='Загрузка…';document.getElementById('srcBadge').className='badge';document.getElementById('importBtn').style.display='none';document.getElementById('funnels').innerHTML='';document.getElementById('tabs').innerHTML='';document.getElementById('view').innerHTML='<div class="card"><h2>Загружаю данные из AmoCRM…</h2><p class="note">Это занимает несколько секунд.</p></div>';return}
-  document.getElementById('importBtn').style.display=S.server?'none':'';
+  document.getElementById('importBtn').style.display=S.server?'none':'';document.getElementById('logoutBtn').style.display=S.server?'':'none';
   const fs=Object.keys(S.data);
   document.getElementById('funnels').innerHTML=fs.map(f=>'<button class="fb" data-f="'+esc(f)+'" aria-pressed="'+(f===S.funnel)+'">'+esc(f)+'<small>'+fmtN(S.data[f].length)+' '+pl(S.data[f].length,['клиент','клиента','клиентов'])+'</small></button>').join('');
   const b=document.getElementById('srcBadge');const live=S.src[S.funnel]==='csv';b.textContent=live?(S.server?'Данные AmoCRM · обновлено '+S.updated:'Ваши данные из CSV'):'Демо-данные, не реальные клиенты';b.className='badge'+(live?' live':'');
@@ -595,7 +595,7 @@ document.getElementById('importBtn').onclick=()=>{showImp=!showImp;render()};
 Object.keys(PROF).forEach(f=>{S.data[f]=genDemo(f);S.src[f]='demo';build(f)});
 S.loading=/^https?:/.test(location.protocol);
 render();
-fetch('data.json',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(j=>{S.loading=false;const fs=Object.keys(j.funnels||{});if(!fs.length){render();return}S.data={};S.src={};fs.forEach(f=>{S.data[f]=j.funnels[f];S.src[f]='csv';build(f)});S.funnel=fs[0];S.server=true;S.leads=j.leads||{};S.batches=j.batches||[];S.dnc=j.dnc||{};applyDnc();S.updated=j.generated;logAdd('Данные AmoCRM загружены с сервера, обновлены '+j.generated);render()}).catch(()=>{S.loading=false;render()});
+fetch('data.json',{cache:'no-store'}).then(r=>{if(r.status===401){location.href='/login';return Promise.reject()}return r.ok?r.json():Promise.reject()}).then(j=>{S.loading=false;const fs=Object.keys(j.funnels||{});if(!fs.length){render();return}S.data={};S.src={};fs.forEach(f=>{S.data[f]=j.funnels[f];S.src[f]='csv';build(f)});S.funnel=fs[0];S.server=true;S.leads=j.leads||{};S.batches=j.batches||[];S.dnc=j.dnc||{};applyDnc();S.updated=j.generated;logAdd('Данные AmoCRM загружены с сервера, обновлены '+j.generated);render()}).catch(()=>{S.loading=false;render()});
 })();
 </script>
 </body>

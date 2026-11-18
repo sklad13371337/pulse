@@ -7,6 +7,8 @@
 import base64
 import datetime
 import gzip
+import hmac
+import secrets
 import json
 import os
 import re
@@ -86,6 +88,42 @@ def truthy(vals):
     return any(v not in (None, False, "", 0, "0") for v in vals)
 
 
+FLOWERS = [("роз", "Роза"), ("тюльпан", "Тюльпан"), ("пион", "Пион"), ("хризантем", "Хризантема"),
+           ("гвоздик", "Гвоздика"), ("лили", "Лилия"), ("гербер", "Гербера"), ("ирис", "Ирис"),
+           ("орхиде", "Орхидея"), ("гортензи", "Гортензия"), ("эустом", "Эустома"), ("альстромер", "Альстромерия"),
+           ("подсолнух", "Подсолнух"), ("ранункул", "Ранункулюс"), ("гипсофил", "Гипсофила"), ("мимоз", "Мимоза"),
+           ("нарцисс", "Нарцисс"), ("гиацинт", "Гиацинт"), ("фрези", "Фрезия"), ("кустов", "Кустовая роза"),
+           ("пионовидн", "Пионовидная роза"), ("букет", "Букет (без состава)"), ("корзин", "Корзина"),
+           ("композиц", "Композиция")]
+
+
+def parse_items(text):
+    """Названия цветов из свободного текста: «большой букет роз» -> [Роза, Букет (без состава)]."""
+    t = (text or "").lower()
+    found = []
+    for stem, name in FLOWERS:
+        if re.search(r"(?<![а-яё])" + stem, t) and name not in found:
+            found.append(name)
+    if len(found) > 1 and "Букет (без состава)" in found:
+        found.remove("Букет (без состава)")
+    return found
+
+
+def load_notes(cfg, lead_ids):
+    """Тексты примечаний к сделкам одним потоком запросов: {id сделки: текст}. Ошибка не ломает синхронизацию."""
+    notes = {}
+    try:
+        for i in range(0, len(lead_ids), 50):
+            for n in pages(cfg, "/leads/notes", {"filter[entity_id][]": lead_ids[i:i + 50], "filter[note_type]": "common"}, "notes"):
+                t = (n.get("params") or {}).get("text") or ""
+                if "Сообщение пришло из источника" in t:
+                    continue
+                notes[n["entity_id"]] = (notes.get(n["entity_id"], "") + " " + t).strip()
+    except Exception as e:
+        log("  примечания не загрузились:", e)
+    return notes
+
+
 def norm_phone(s):
     d = re.sub(r"\D", "", str(s or ""))
     if len(d) == 11 and d[0] == "8":
@@ -120,6 +158,8 @@ def sync(cfg):
         for i in range(0, len(cids), 50):
             for c in pages(cfg, "/contacts", {"filter[id][]": cids[i:i + 50]}, "contacts"):
                 contacts[c["id"]] = c
+        notes = load_notes(cfg, [l["id"] for l in leads]) if cfg.get("parse_notes", True) else {}
+        log("  %s: примечаний с текстом %d" % (fname, len(notes)))
         clients = {}
         prefix = fname[:2].upper()
         for l in leads:
@@ -134,7 +174,7 @@ def sync(cfg):
             if cfg.get("items_field_id"):
                 items = [str(x) for x in field_values(l, cfg["items_field_id"]) if x]
             else:
-                items = [l.get("name") or ""]
+                items = parse_items((l.get("name") or "") + " " + notes.get(l["id"], "")) or ["Без состава"]
             cl = clients.setdefault(key, {
                 "id": "%s-%s" % (prefix, c["id"]), "name": c.get("name") or "Без имени", "phone": ph,
                 "consent": bool(cfg.get("assume_consent", False)), "optout": False, "complaint": False,
@@ -263,18 +303,112 @@ def add_sent(phones):
 
 
 # ---------------------------------------------------------------- веб-сервер
+SESSIONS_FILE = os.path.join(HERE, "sessions.json")
+SESSION_DAYS = 30
+FAILS = {}   # ip -> [число неудач, время последней]
+
+LOGIN_HTML = """<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Пульс базы — вход</title><style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f4f1f3;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#2b2430}
+.c{background:#fff;border-radius:16px;box-shadow:0 8px 30px rgba(60,30,60,.12);padding:34px 30px;width:100%;max-width:360px;margin:16px}
+h1{margin:0 0 4px;font-size:22px}p{margin:0 0 22px;color:#7b6f80;font-size:14px}
+label{display:block;font-size:13px;margin:14px 0 6px;color:#5b5060}
+input{width:100%;padding:12px 14px;border:1px solid #d9d0dc;border-radius:10px;font-size:16px;outline:none}
+input:focus{border-color:#b04a82;box-shadow:0 0 0 3px rgba(176,74,130,.15)}
+button{width:100%;margin-top:22px;padding:13px;border:0;border-radius:10px;background:#b04a82;color:#fff;font-size:16px;font-weight:600;cursor:pointer}
+button:hover{background:#9a3d70}.e{background:#fdecef;color:#b3243c;border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:6px}
+.f{margin-top:18px;font-size:12px;color:#9a8fa0;text-align:center}</style></head><body>
+<form class="c" method="post" action="/login"><h1>Пульс базы</h1><p>Розамания · повторные продажи</p>
+__ERR__<label for="u">Логин</label><input id="u" name="u" autocomplete="username" autofocus required>
+<label for="p">Пароль</label><input id="p" name="p" type="password" autocomplete="current-password" required>
+<button type="submit">Войти</button><div class="f">Доступ только для сотрудников</div></form></body></html>"""
+
+
 def make_handler(cfg):
-    user, pwd = cfg.get("user"), cfg.get("password")
-    token = "Basic " + base64.b64encode(("%s:%s" % (user, pwd)).encode()).decode() if pwd else None
+    users = dict(cfg.get("users") or {})
+    if cfg.get("password"):
+        users.setdefault(cfg.get("user") or "pulse", cfg["password"])
+    secure = bool(cfg.get("cookie_secure", True))
+
+    def load_sessions():
+        now = time.time()
+        return {k: v for k, v in read_json(SESSIONS_FILE, {}).items() if v.get("exp", 0) > now}
+
+    def save_sessions(d):
+        tmp = SESSIONS_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(d, f)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, SESSIONS_FILE)
 
     class H(BaseHTTPRequestHandler):
+        def _ip(self):
+            return (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
+
+        def _cookie(self):
+            for part in (self.headers.get("Cookie") or "").split(";"):
+                k, _, v = part.strip().partition("=")
+                if k == "pulse_sid":
+                    return v
+            return ""
+
         def _auth(self):
-            if token and self.headers.get("Authorization") != token:
-                self.send_response(401)
-                self.send_header("WWW-Authenticate", 'Basic realm="Pulse"')
+            if not users:
+                return True
+            sid = self._cookie()
+            with LOCK:
+                sess = load_sessions().get(sid) if sid else None
+            if sess:
+                return True
+            if self.command == "GET" and self.path.split("?")[0] in ("/", "/index.html"):
+                self.send_response(302)
+                self.send_header("Location", "/login")
                 self.end_headers()
-                return False
-            return True
+            else:
+                self._send(401, b'{"error":"auth"}', "application/json")
+            return False
+
+        def _login_page(self, err=""):
+            html = LOGIN_HTML.replace("__ERR__", '<div class="e">%s</div>' % err if err else "")
+            self._send(200, html.encode(), "text/html; charset=utf-8")
+
+        def _do_login(self):
+            ip = self._ip()
+            n = min(int(self.headers.get("Content-Length") or 0), 4096)
+            form = urllib.parse.parse_qs(self.rfile.read(n).decode("utf-8", "ignore"))
+            u = (form.get("u") or [""])[0].strip()
+            p = (form.get("p") or [""])[0]
+            f = FAILS.get(ip, [0, 0])
+            if f[0] >= 5 and time.time() - f[1] < 300:
+                return self._login_page("Слишком много попыток. Подождите 5 минут.")
+            good = u in users and hmac.compare_digest(str(users[u]).encode(), p.encode())
+            if not good:
+                FAILS[ip] = [f[0] + 1 if time.time() - f[1] < 300 else 1, time.time()]
+                time.sleep(1)
+                log("Неудачный вход:", u[:30], ip)
+                return self._login_page("Неверный логин или пароль")
+            FAILS.pop(ip, None)
+            sid = secrets.token_urlsafe(32)
+            with LOCK:
+                d = load_sessions()
+                d[sid] = {"user": u, "exp": time.time() + SESSION_DAYS * 86400}
+                save_sessions(d)
+            log("Вход:", u, ip)
+            self.send_response(303)
+            self.send_header("Location", "/")
+            self.send_header("Set-Cookie", "pulse_sid=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax%s" % (sid, SESSION_DAYS * 86400, "; Secure" if secure else ""))
+            self.end_headers()
+
+        def _do_logout(self):
+            sid = self._cookie()
+            with LOCK:
+                d = load_sessions()
+                if d.pop(sid, None) is not None:
+                    save_sessions(d)
+            self.send_response(303)
+            self.send_header("Location", "/login")
+            self.send_header("Set-Cookie", "pulse_sid=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax%s" % ("; Secure" if secure else ""))
+            self.end_headers()
 
         def _send(self, code, body, ctype):
             self.send_response(code)
@@ -305,9 +439,13 @@ def make_handler(cfg):
                 self._send(200, raw, "application/json; charset=utf-8")
 
         def do_GET(self):
+            path = self.path.split("?")[0]
+            if path == "/login":
+                return self._login_page()
+            if path == "/logout":
+                return self._do_logout()
             if not self._auth():
                 return
-            path = self.path.split("?")[0]
             if path == "/data.json":
                 self._send_data()
             elif path in ("/", "/index.html"):
@@ -317,6 +455,8 @@ def make_handler(cfg):
                 self._send(404, b"not found", "text/plain")
 
         def do_POST(self):
+            if self.path.split("?")[0] == "/login":
+                return self._do_login()
             if not self._auth():
                 return
             if self.path.split("?")[0] == "/api/sent":
