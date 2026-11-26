@@ -308,7 +308,7 @@ function vPulse(){
 }
 function tile(l,v,n,cls){return'<div class="card tile '+(cls||'')+'"><div class="l">'+esc(l)+'</div><div class="v">'+v+'</div><div class="n">'+esc(n||'')+'</div></div>'}
 
-const YEARS=()=>{const e=new Date(today*DAY).getUTCFullYear(),r=[];for(let y=Y0;y<=e;y++)r.push(y);return r};
+const YEARS=()=>{const e=new Date(today*DAY).getUTCFullYear(),r=[];for(let y=Y0;y<e;y++)r.push(y);return r};
 const yc=(x,y)=>{const b=x.a.by[y];return b?'<b>'+b.n+'</b>':'<span class="note">·</span>'};
 function workList(){
   const f=S.f,q=f.q.trim().toLowerCase();
@@ -550,6 +550,12 @@ function vRes(){
   h+='<div class="grid tiles" style="margin-top:12px">'+tile('Отправлено',fmtN(sn),rows.length+' '+pl(rows.length,['пачка','пачки','пачек']))+tile('Купили в окне',fmtN(sb),pct(sb,sn)+' от отправленных','good')+tile('Выручка с купивших',rub(sr),'затраты на сообщения: '+rub(cost))+tile('Добавочная выручка (оценка)',inc==null?'мало данных':rub(inc),inc==null?'в контрольной группе меньше 20 человек':'за вычетом того, что купили бы и без рассылки','vio')+'</div>';
   h+='<div class="card" style="margin-top:12px"><h2>По пачкам</h2><div class="tw"><table><thead><tr><th>Дата</th><th>Список</th><th>Шаблон</th><th class="num">Отправлено</th><th class="num">Купили</th><th class="num">Контроль: купили</th><th class="num">Разница</th><th class="num">Выручка</th><th>Окно</th></tr></thead><tbody>'+
    rows.slice().reverse().map(r=>{const d=r.st.s.n?r.st.s.buyers/r.st.s.n*100:0,e=r.st.c.n?r.st.c.buyers/r.st.c.n*100:null;return'<tr><td>'+dstr(r.b.day)+'</td><td>'+esc(CATS[r.b.cat]||'Рабочий список')+'</td><td>'+esc((r.b.tpl||'').slice(0,60))+'</td><td class="num">'+fmtN(r.st.s.n)+'</td><td class="num">'+r.st.s.buyers+' · '+pct(r.st.s.buyers,r.st.s.n)+'</td><td class="num">'+(r.st.c.n?r.st.c.buyers+' из '+r.st.c.n+' · '+pct(r.st.c.buyers,r.st.c.n):'нет')+'</td><td class="num">'+(e==null?'—':(d-e>=0?'+':'')+(d-e).toFixed(1)+' п.п.')+'</td><td class="num">'+rub(r.st.s.rev)+'</td><td>'+(r.st.done?'закрыто':'идёт, дней осталось: '+(r.b.day+S.win-today))+'</td></tr>'}).join('')+'</tbody></table></div></div>';
+  const sel=B.find(b=>String(b.id)===String(S.rb))||B[B.length-1],by2={};cur().forEach(x=>{if(x.c.phone)by2[x.c.phone]=x});
+  const who=[];[[sel.phones||[],'Получили'],[sel.ctrl||[],'Контроль']].forEach(g=>g[0].forEach(p=>{const x=by2[p];if(!x)return;const o=x.a.sorted.filter(o=>o.d>sel.day&&o.d<=sel.day+S.win);who.push({x,g:g[1],buy:o.length>0,sum:o.reduce((a,y)=>a+y.sum,0),d:o.length?o[0].d:null})}));
+  who.sort((a,b)=>(b.buy-a.buy)||(a.g<b.g?-1:1));
+  h+='<div class="card" style="margin-top:12px"><h2>Кто купил, а кто нет</h2><div class="bar-row"><label>Пачка <select id="rBatch">'+B.slice().reverse().map(b=>'<option value="'+b.id+'"'+(b===sel?' selected':'')+'>'+dstr(b.day)+' · '+esc(CATS[b.cat]||'Рабочий список')+' · '+(b.phones||[]).length+' чел.</option>').join('')+'</select></label></div>'+
+   '<p class="note">Окно '+S.win+' дн после отправки. Купил — есть успешная сделка в окне. Нажмите на строку, чтобы открыть карточку.</p><div class="tw"><table><thead><tr><th>Клиент</th><th>Группа</th><th>Итог</th><th class="num">Сумма</th><th>Дата покупки</th></tr></thead><tbody>'+
+   who.slice(0,300).map(r=>'<tr class="click" data-id="'+esc(r.x.c.id)+'"><td><b>'+esc(r.x.c.name)+'</b><div class="note">'+esc(fmtPhone(r.x.c.phone))+'</div></td><td>'+r.g+'</td><td><span class="pill '+(r.buy?'p-yes':'p-no')+'">'+(r.buy?'Купил':'Не купил')+'</span></td><td class="num">'+(r.buy?rub(r.sum):'—')+'</td><td>'+(r.d?dstr(r.d):'—')+'</td></tr>').join('')+'</tbody></table></div></div>';
   const CT={};rows.forEach(r=>{const k=r.b.cat||'work';const t=CT[k]=CT[k]||{k,n:0,b:0,rev:0,cn:0,cb:0};t.n+=r.st.s.n;t.b+=r.st.s.buyers;t.rev+=r.st.s.rev;t.cn+=r.st.c.n;t.cb+=r.st.c.buyers});
   h+='<div class="card" style="margin-top:12px"><h2>По спискам</h2><div class="tw"><table><thead><tr><th>Список</th><th class="num">Отправлено</th><th class="num">Купили</th><th class="num">Контроль: купили</th><th class="num">Выручка на сообщение</th></tr></thead><tbody>'+Object.values(CT).map(t=>'<tr><td>'+esc(CATS[t.k]||'Рабочий список')+'</td><td class="num">'+fmtN(t.n)+'</td><td class="num">'+t.b+' · '+pct(t.b,t.n)+'</td><td class="num">'+(t.cn?t.cb+' из '+t.cn+' · '+pct(t.cb,t.cn):'нет')+'</td><td class="num">'+(t.n?rub(t.rev/t.n):'—')+'</td></tr>').join('')+'</tbody></table></div><p class="note">Купили — те, у кого после дня отправки в окне появилась успешная сделка. Не купили — все остальные из пачки.</p></div>';
   const T={};rows.forEach(r=>{const k=(r.b.tpl||'').trim();const t=T[k]=T[k]||{k,n:0,b:0,rev:0,cn:0,cb:0};t.n+=r.st.s.n;t.b+=r.st.s.buyers;t.rev+=r.st.s.rev;t.cn+=r.st.c.n;t.cb+=r.st.c.buyers});
@@ -589,6 +595,7 @@ function bind(){
   if($('sBs'))$('sBs').onchange=e=>{S.bsize=Math.max(1,+e.target.value||1)};
   if($('sCt'))$('sCt').onchange=e=>{S.ctrl=Math.min(50,Math.max(0,+e.target.value||0))};
   if($('sTpl'))$('sTpl').oninput=e=>{S.tpl=e.target.value};
+  if($('rBatch'))$('rBatch').onchange=e=>{S.rb=e.target.value;render()};
   if($('sCat'))$('sCat').onchange=e=>{const was=S.pcat;if(S.tpl===TPLS[was])S.tpl=TPLS[e.target.value];S.pcat=e.target.value;S.batch=null;render()};
   if($('sPrep'))$('sPrep').onclick=()=>{prepBatch();render()};
   if($('sCopy'))$('sCopy').onclick=async()=>{const txt=S.batch.rows.map(x=>x.c.phone+'\t'+msgFor(x).replace(/\s+/g,' ')).join('\n');let ok=false;try{await navigator.clipboard.writeText(txt);ok=true}catch(_){}
