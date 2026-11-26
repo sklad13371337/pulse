@@ -61,6 +61,49 @@ def amo(cfg, path, params=None):
     raise RuntimeError("AmoCRM не отвечает: " + url)
 
 
+def amo_post(cfg, path, payload):
+    """Запись в AmoCRM (нужны права токена на запись). Возвращает (код, ответ)."""
+    url = "https://%s.amocrm.ru/api/v4%s" % (cfg["subdomain"], path)
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, method="POST",
+                                 headers={"Authorization": "Bearer " + cfg["token"], "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            body = r.read()
+            return r.status, (json.loads(body) if body else {})
+    except urllib.error.HTTPError as e:
+        return e.code, {"error": e.read().decode("utf-8", "replace")[:300]}
+    finally:
+        time.sleep(0.3)
+
+
+def write_notes(cfg, items):
+    """items: [{id: 'префикс-123', lead: 456, text: '...'}] -> примечания в историю карточки сделки (или контакта, если сделки нет)."""
+    ok = bad = 0
+    err = ""
+    leads, conts = [], []
+    for it in items[:300]:
+        txt = str(it.get("text", ""))[:3000]
+        lid = str(it.get("lead") or "")
+        cid = str(it.get("id", "")).rsplit("-", 1)[-1]
+        if txt and lid.isdigit():
+            leads.append({"entity_id": int(lid), "note_type": "common", "params": {"text": txt}})
+        elif txt and cid.isdigit():
+            conts.append({"entity_id": int(cid), "note_type": "common", "params": {"text": txt}})
+        else:
+            bad += 1
+    for path, notes in (("/leads/notes", leads), ("/contacts/notes", conts)):
+        for i in range(0, len(notes), 50):
+            code, resp = amo_post(cfg, path, notes[i:i + 50])
+            if code in (200, 201):
+                ok += len(notes[i:i + 50])
+            else:
+                bad += len(notes[i:i + 50])
+                err = "AmoCRM %s: %s" % (code, resp.get("error", ""))
+                return ok, bad, err
+    return ok, bad, err
+
+
 def pages(cfg, path, params, key):
     page = 1
     while True:
@@ -186,7 +229,7 @@ def sync(cfg):
                 cl["consent"] = any(v is True for v in field_values(c, cfg["consent_field_id"]))
             if cfg.get("optout_field_id"):
                 cl["optout"] = truthy(field_values(c, cfg["optout_field_id"]))
-            cl["orders"].append({"d": l["closed_at"] // 86400, "sum": l["price"], "items": [i for i in items if i]})
+            cl["orders"].append({"d": l["closed_at"] // 86400, "sum": l["price"], "items": [i for i in items if i], "l": l["id"]})
         out[fname] = list(clients.values())
         log("  %s: клиентов %d" % (fname, len(out[fname])))
         # обращения без покупки (для раздела «Лиды»): открытые и закрытые без реализации
@@ -475,6 +518,16 @@ def make_handler(cfg):
                     add_batch(body.get("funnel", ""), body.get("tpl", ""), phones, ctrl, body.get("cat", "work"))
                 log("Записано отправок:", len(phones))
                 self._send(200, b"{}", "application/json")
+            elif self.path.split("?")[0] == "/api/amo_notes":
+                n = int(self.headers.get("Content-Length") or 0)
+                try:
+                    body = json.loads(self.rfile.read(n))
+                    items = [x for x in body.get("items", []) if isinstance(x, dict)]
+                except ValueError:
+                    return self._send(400, b"bad json", "text/plain")
+                ok, bad, err = write_notes(load_cfg(), items)
+                log("Примечания в AmoCRM: записано %d, не записано %d %s" % (ok, bad, err))
+                self._send(200, json.dumps({"ok": ok, "bad": bad, "err": err}).encode(), "application/json")
             elif self.path.split("?")[0] == "/api/dnc":
                 n = int(self.headers.get("Content-Length") or 0)
                 try:
