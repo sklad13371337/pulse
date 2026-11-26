@@ -14,7 +14,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.45}
 body{background-image:radial-gradient(70% 45% at 85% -8%,rgba(140,91,209,.20),transparent 70%),radial-gradient(50% 35% at 0% 0%,rgba(244,190,85,.07),transparent 70%);background-repeat:no-repeat}
-.wrap{max-width:1180px;margin:0 auto;padding:16px}
+.wrap{max-width:1680px;margin:0 auto;padding:16px 24px}
 header.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding:6px 0 14px;border-bottom:1px solid var(--line);margin-bottom:18px}
 .brand{display:flex;align-items:center;gap:10px}
 .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#FFD36B,#FF8A5B);display:grid;place-items:center;box-shadow:0 6px 20px rgba(255,138,91,.25)}
@@ -33,7 +33,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .btn.primary{background:#F5F2F4;color:#0A090B;border-color:#F5F2F4;box-shadow:0 0 28px rgba(255,255,255,.18)}
 .btn.primary:hover{background:#fff}
 .btn:disabled{opacity:.45;cursor:not-allowed}
-nav.tabs{display:flex;gap:4px;overflow-x:auto;padding:5px;background:var(--bg1);border:1px solid var(--line);border-radius:99px;margin:16px 0 26px;width:fit-content;max-width:100%}
+nav.tabs{display:flex;flex-wrap:wrap;gap:4px;padding:5px;background:var(--bg1);border:1px solid var(--line);border-radius:26px;margin:16px 0 26px;width:100%}
 nav.tabs button{border:0;background:none;color:var(--muted);padding:9px 16px;border-radius:99px;white-space:nowrap;font-weight:600}
 nav.tabs button:hover{color:var(--ink)}
 nav.tabs button[aria-selected="true"]{background:var(--chip);color:var(--ink);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2)}
@@ -119,7 +119,7 @@ const DAY=86400000;const Y0=2022;const CATS={ann:'Годовщина покуп�
 const today=Math.floor(Date.now()/DAY);
 const MONTHS=['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
 const SEG={ok:'Покупает как обычно',due:'Пора напомнить',fading:'Пропадает',sleep:'Спящий',new:'Новичок, 1 покупка'};
-const TABS=[['pulse','Пульс базы'],['today','Списки на сегодня'],['map','Карта базы'],['card','Карточка клиента'],['top','Лучшие клиенты'],['leads','Лиды'],['dnc','Не писать'],['season','Товары и сезон'],['send','Отправки'],['results','Результаты'],['ai','Поиск запросом'],['log','Права и журнал']];
+const TABS=[['pulse','Пульс базы'],['today','Списки на сегодня'],['map','Карта базы'],['card','Карточка клиента'],['top','Лучшие клиенты'],['leads','Лиды'],['dnc','Не писать'],['season','Товары и сезон'],['send','Отправки'],['results','Результаты']];
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmtN=n=>Math.round(n).toLocaleString('ru-RU');
 const rub=n=>fmtN(n)+' ₽';

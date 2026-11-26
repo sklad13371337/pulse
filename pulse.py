@@ -172,7 +172,8 @@ def sync(cfg):
             ph = norm_phone((field_values(c, code="PHONE") or [""])[0])
             key = ph or "c%s" % c["id"]
             if cfg.get("items_field_id"):
-                items = [str(x) for x in field_values(l, cfg["items_field_id"]) if x]
+                txt = " ; ".join(str(x) for x in field_values(l, cfg["items_field_id"]) if x)
+                items = parse_items(txt) or ([txt[:80]] if txt else ["Без состава"])
             else:
                 items = parse_items((l.get("name") or "") + " " + notes.get(l["id"], "")) or ["Без состава"]
             cl = clients.setdefault(key, {
