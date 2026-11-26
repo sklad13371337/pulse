@@ -143,7 +143,7 @@ def sync(cfg):
             log("  воронка не найдена:", name, "| есть:", [p["name"] for p in pls])
             continue
         wanted[name] = hit[0]["id"]
-    since = int(time.time()) - int(cfg.get("months_back", 24)) * 30 * 86400
+    since = int(datetime.datetime.strptime(cfg.get("since_date", "2022-01-01"), "%Y-%m-%d").replace(tzinfo=datetime.timezone.utc).timestamp())
     out = {}
     leads_out = {}
     for fname, pid in wanted.items():
@@ -282,12 +282,12 @@ def dnc_update(add, remove, note):
     return d, len(ok_add), bad
 
 
-def add_batch(funnel, tpl, phones, ctrl):
+def add_batch(funnel, tpl, phones, ctrl, cat="work"):
     """Журнал пачек: по нему раздел «Результаты» сравнивает купивших и контрольную группу."""
     with LOCK:
         b = read_json(BATCH_FILE, [])
         b.append({"id": len(b) + 1, "day": int(time.time() // 86400), "funnel": str(funnel), "tpl": str(tpl)[:2000],
-                  "phones": phones, "ctrl": ctrl})
+                  "cat": str(cat)[:10], "phones": phones, "ctrl": ctrl})
         with open(BATCH_FILE, "w", encoding="utf-8") as f:
             json.dump(b, f, ensure_ascii=False)
 
@@ -469,7 +469,7 @@ def make_handler(cfg):
                     return self._send(400, b"bad json", "text/plain")
                 add_sent(phones)
                 if phones:
-                    add_batch(body.get("funnel", ""), body.get("tpl", ""), phones, ctrl)
+                    add_batch(body.get("funnel", ""), body.get("tpl", ""), phones, ctrl, body.get("cat", "work"))
                 log("Записано отправок:", len(phones))
                 self._send(200, b"{}", "application/json")
             elif self.path.split("?")[0] == "/api/dnc":
